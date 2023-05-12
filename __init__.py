@@ -89,7 +89,9 @@ logHandler.setFormatter(logging.Formatter(logsFormat, style='{'))
 logger = logging.getLogger(__name__)
 logger.addHandler(logHandler)
 logger.setLevel(logging.DEBUG)
-logger.info('###### Starting new Blender session : {}'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+logger.info(
+	f"###### Starting new Blender session : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+)
 
 def _excepthook(exc_type, exc_value, exc_traceback):
 	if 'BlenderGIS' in exc_traceback.tb_frame.f_code.co_filename:
@@ -300,7 +302,7 @@ def register():
 		try:
 			bpy.utils.register_class(menu)
 		except ValueError as e:
-			logger.warning('{} is already registered, now unregister and retry... '.format(menu))
+			logger.warning(f'{menu} is already registered, now unregister and retry... ')
 			bpy.utils.unregister_class(menu)
 			bpy.utils.register_class(menu)
 
@@ -342,10 +344,9 @@ def register():
 	if not bpy.app.background: #no ui when running as background
 		wm = bpy.context.window_manager
 		kc =  wm.keyconfigs.active
-		if '3D View' in kc.keymaps:
+		if '3D View' in kc.keymaps and BASEMAPS:
 			km = kc.keymaps['3D View']
-			if BASEMAPS:
-				kmi = km.keymap_items.new(idname='view3d.map_start', type='NUMPAD_ASTERIX', value='PRESS')
+			kmi = km.keymap_items.new(idname='view3d.map_start', type='NUMPAD_ASTERIX', value='PRESS')
 
 	#Setup prefs
 	preferences = bpy.context.preferences.addons[__package__].preferences
@@ -365,9 +366,8 @@ def unregister():
 		wm = bpy.context.window_manager
 		if '3D View' in  wm.keyconfigs.active.keymaps:
 			km = wm.keyconfigs.active.keymaps['3D View']
-			if BASEMAPS:
-				if 'view3d.map_start' in km.keymap_items:
-					kmi = km.keymap_items.remove(km.keymap_items['view3d.map_start'])
+			if BASEMAPS and 'view3d.map_start' in km.keymap_items:
+				kmi = km.keymap_items.remove(km.keymap_items['view3d.map_start'])
 
 	bpy.types.VIEW3D_MT_editor_menus.remove(add_gis_menu)
 

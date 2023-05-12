@@ -286,8 +286,12 @@ gpsT = {
 }
 
 _TAG_FAMILIES = [bTT, xTT, pTT, exfT, gpsT]
-_TAG_FAMILIES_2TAG = [dict((v[0], t) for t,v in dic.items()) for dic in _TAG_FAMILIES]
-_TAG_FAMILIES_2KEY = [dict((v, k) for k,v in dic.items()) for dic in _TAG_FAMILIES_2TAG]
+_TAG_FAMILIES_2TAG = [
+	{v[0]: t for t, v in dic.items()} for dic in _TAG_FAMILIES
+]
+_TAG_FAMILIES_2KEY = [
+	{v: k for k, v in dic.items()} for dic in _TAG_FAMILIES_2TAG
+]
 
 def get(tag):
 	idx = 0
@@ -301,16 +305,10 @@ def get(tag):
 def _2tag(tag, family=None):
 	if family != None:
 		idx = _TAG_FAMILIES.index(family)
-		if isinstance(tag, (bytes, str)):
-			if tag in _TAG_FAMILIES_2TAG[idx]:
-				return _TAG_FAMILIES_2TAG[idx][tag]
-			return tag
-		else:
-			return tag
+		if isinstance(tag, (bytes, str)) and tag in _TAG_FAMILIES_2TAG[idx]:
+			return _TAG_FAMILIES_2TAG[idx][tag]
 	elif isinstance(tag, (bytes, str)):
 		for dic in _TAG_FAMILIES_2TAG:
 			if tag in dic:
 				return dic[tag]
-		return tag
-	else:
-		return tag
+	return tag

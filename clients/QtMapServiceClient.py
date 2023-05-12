@@ -36,8 +36,7 @@ def getShpExtent(pathShp):
 	if len(shapes) != 1:
 		return
 	else:
-		extent = shapes[0].bbox #xmin, ymin, xmax, ymax
-		return extent
+		return shapes[0].bbox
 
 def getKmlExtent(kmlFile, crs2):
 
@@ -50,25 +49,24 @@ def getKmlExtent(kmlFile, crs2):
 
 	def namespace(element):
 		m = re.match('\{.*\}', element.tag)
-		return m.group(0) if m else ''
+		return m[0] if m else ''
 
 	root = etree.parse(kmlFile).getroot()
 	ns = namespace(root)
 	polygons = []
-	for poly in root.iter(ns+"Polygon"):
-		for attributes in poly.iter(ns+"coordinates"):
+	for poly in root.iter(f"{ns}Polygon"):
+		for attributes in poly.iter(f"{ns}coordinates"):
 			polygons.append(formatCoor(attributes.text))
 	if len(polygons) != 1:
 		return
-	else:
-		pts = polygons[0] #first feature
-		pts = reprojPts(4326, crs2, pts)
-		xmin = min([pt[0] for pt in pts])
-		ymin = min([pt[1] for pt in pts])
-		xmax = max([pt[0] for pt in pts])
-		ymax = max([pt[1] for pt in pts])
-		extent = [xmin, ymin, xmax, ymax]
-		return list(map(round,extent))
+	pts = polygons[0] #first feature
+	pts = reprojPts(4326, crs2, pts)
+	xmin = min(pt[0] for pt in pts)
+	ymin = min(pt[1] for pt in pts)
+	xmax = max(pt[0] for pt in pts)
+	ymax = max(pt[1] for pt in pts)
+	extent = [xmin, ymin, xmax, ymax]
+	return list(map(round,extent))
 
 
 
@@ -125,8 +123,7 @@ class QtMapServiceClient(QtGui.QMainWindow, mainForm):
 	@property
 	def rq(self):
 		if self.extent is not None and self.zoom is not None:
-			rq = self.provider.srcTms.bboxRequest(self.extent, self.zoom)
-			return rq
+			return self.provider.srcTms.bboxRequest(self.extent, self.zoom)
 
 
 	def uiUpdateMaskOption(self):
@@ -185,7 +182,7 @@ class QtMapServiceClient(QtGui.QMainWindow, mainForm):
 	def uiDoUpdateRes(self, zoomLevel):
 		'''Triggered when cbZoom idx change'''
 		if self.rq is not None:
-			self.lbRes.setText(str(round(self.rq.res, 2))+" m/px")
+			self.lbRes.setText(f"{str(round(self.rq.res, 2))} m/px")
 			self.uiDoRequestInfos()
 
 	def uiDoReadShpExtent(self):
@@ -195,14 +192,12 @@ class QtMapServiceClient(QtGui.QMainWindow, mainForm):
 
 	def updateExtent(self):
 		path = self.inVectorFile.text()
-		if not os.path.exists(path):
-			pass
-		else:
+		if os.path.exists(path):
 			ext = path[-3:]
-			if ext == 'shp':
-				self.extent = getShpExtent(path) #xmin, ymin, xmax, ymax
-			elif ext == 'kml':
+			if ext == 'kml':
 				self.extent = getKmlExtent(path, self.provider.srcTms.CRS)
+			elif ext == 'shp':
+				self.extent = getShpExtent(path) #xmin, ymin, xmax, ymax
 			if not self.extent:
 				QtGui.QMessageBox.information(self, "Cannot read vector extent file", "This file must contains only one polygon")
 				return
@@ -212,28 +207,35 @@ class QtMapServiceClient(QtGui.QMainWindow, mainForm):
 
 
 	def uiDoRequestInfos(self):
-		if self.rq is not None:
-			tileSize = self.rq.tileSize
-			res = self.rq.res
-			cols, rows = self.rq.nbTilesX, self.rq.nbTilesY
-			n = self.rq.nbTiles
-			#rqTiles = rq.tiles #[(x,y,z)]
+		if self.rq is None:
+			return
+		tileSize = self.rq.tileSize
+		res = self.rq.res
+		cols, rows = self.rq.nbTilesX, self.rq.nbTilesY
+		n = self.rq.nbTiles
+		#rqTiles = rq.tiles #[(x,y,z)]
+		#
+		xmin, ymin, xmax, ymax = self.extent
+		dstX = xmax-xmin
+		dstY = ymax-ymin
+		txtEmprise = f"{str(round(dstX))} x {str(round(dstY))} m"
+		#
+		nbPx = int(cols * tileSize * rows * tileSize)
+		if nbPx > 1000000:
+			txtNbPx = f"{str(nbPx // 1000000)} Mpix"
+		else:
+			txtNbPx = f"{str(nbPx)} pix"
 			#
-			xmin, ymin, xmax, ymax = self.extent
-			dstX = xmax-xmin
-			dstY = ymax-ymin
-			txtEmprise = str(round(dstX)) + " x " + str(round(dstY)) + " m"
+		txtNbTiles = f"{str(n)} tile(s)"
 			#
-			nbPx = int(cols * tileSize * rows * tileSize)
-			if nbPx > 1000000:
-				txtNbPx = str(int(nbPx/1000000)) + " Mpix"
-			else:
-				txtNbPx = str(nbPx) + " pix"
-			#
-			txtNbTiles = str(n) + " tile(s)"
-			#
-			resultStr = txtNbTiles + " (" + str(cols) + 'x' + str(rows) + ") - " + txtNbPx + " - " + txtEmprise
-			self.requestInfos.setText(resultStr)
+		resultStr = (
+			f"{txtNbTiles} ({str(cols)}x{str(rows)}"
+			+ ") - "
+			+ txtNbPx
+			+ " - "
+			+ txtEmprise
+		)
+		self.requestInfos.setText(resultStr)
 
 
 
@@ -266,10 +268,7 @@ class QtMapServiceClient(QtGui.QMainWindow, mainForm):
 		#Start map service
 		self.btOkMosaic.setEnabled(False)
 
-		if self.chkReproj:
-			outCRS = self.outProj
-		else:
-			outCRS = None
+		outCRS = self.outProj if self.chkReproj else None
 		outFile = outFolder + os.sep + nameTemplate + '.tif'
 
 		seedOnly = self.chkSeedCache.isChecked()
@@ -296,10 +295,7 @@ class QtMapServiceClient(QtGui.QMainWindow, mainForm):
 
 	def uiSendQuestion(self, titre, msg):
 		choice = QtGui.QMessageBox.question(self, titre, msg, QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
-		if choice == QtGui.QMessageBox.Yes:
-			return True
-		else:
-			return False
+		return choice == QtGui.QMessageBox.Yes
 
 	def updateUi(self):
 		self.btOkMosaic.setEnabled(True)
@@ -316,18 +312,15 @@ class QtMapServiceClient(QtGui.QMainWindow, mainForm):
 
 #Set des inputbox
 	def setInOutFolder(self):
-		path = self.setExistingDirectory()
-		if path:
+		if path := self.setExistingDirectory():
 			self.inOutFolder.setText(path)
 
 	def setCacheFolder(self):
-		path = self.setExistingDirectory()
-		if path:
+		if path := self.setExistingDirectory():
 			self.inCacheFolder.setText(path)
 
 	def setInFolder(self):
-		path = self.setExistingDirectory()
-		if path:
+		if path := self.setExistingDirectory():
 			self.inVectorFile.setText(path)
 
 #Standard dialogs

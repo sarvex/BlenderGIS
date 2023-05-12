@@ -55,13 +55,12 @@ class Color(object):
 					self.from_hsv(*values)
 
 	def __str__(self):
-		if self.data is not None:
-			strRGB = 'RGB ' + str(self.RGB)
-			strHSV = 'HSV ' + str(self.HSV)
-			strAlpha = 'Alpha ' + str(self.alpha)
-			return strRGB + ' - ' + strHSV + ' - ' + strAlpha
-		else:
+		if self.data is None:
 			return "No color defined"
+		strRGB = f'RGB {str(self.RGB)}'
+		strHSV = f'HSV {str(self.HSV)}'
+		strAlpha = f'Alpha {str(self.alpha)}'
+		return f'{strRGB} - {strHSV} - {strAlpha}'
 
 	def __eq__(self, other):
 		return self.data == other.data
@@ -69,10 +68,7 @@ class Color(object):
 	#All properties will be computed from rgba vector data
 	@property
 	def alpha(self):
-		if self.data is not None:
-			return self.rgba[-1]#range from 0 to 1
-		else:
-			return None
+		return self.rgba[-1] if self.data is not None else None
 	@property
 	def hex(self):
 		if self.data is not None:
@@ -82,98 +78,70 @@ class Color(object):
 	## props with alpha
 	@property
 	def RGBA(self): #values range from 0 to 255
-		if self.data is not None:
-			return tuple([int(v*255) for v in self.rgba])
-		else:
-			return None
+		return None if self.data is None else tuple(int(v*255) for v in self.rgba)
 	@property
 	def rgba(self): #values range from 0 to 1
-		if self.data is not None:
-			return tuple(self.data)
-		else:
-			return None
+		return tuple(self.data) if self.data is not None else None
 	@property
 	def HSVA(self): #H ranges from 0° to 360°. Other values range from 0 to 100%
-		if self.data is not None:
-			h, s, v, a = self.hsva
-			return tuple([h*360, s*100, v*100, a*100])
-		else:
+		if self.data is None:
 			return None
+		h, s, v, a = self.hsva
+		return h*360, s*100, v*100, a*100
 	@property
 	def hsva(self): #values range from 0 to 1
-		if self.data is not None:
-			return self.hsv + tuple([self.alpha])
-		else:
-			return None
+		return self.hsv + (self.alpha, ) if self.data is not None else None
 	## props without alpha
 	@property
 	def RGB(self):
-		if self.data is not None:
-			return tuple(self.RGBA[:-1])
-		else:
-			return None
+		return tuple(self.RGBA[:-1]) if self.data is not None else None
 	@property
 	def rgb(self):
-		if self.data is not None:
-			return tuple(self.rgba[:-1])
-		else:
-			return None
+		return tuple(self.rgba[:-1]) if self.data is not None else None
 	@property
 	def HSV(self):
-		if self.data is not None:
-			h, s, v = self.hsv
-			return tuple([h*360, s*100, v*100])
-		else:
+		if self.data is None:
 			return None
+		h, s, v = self.hsv
+		return h*360, s*100, v*100
 	@property
 	def hsv(self):
-		if self.data is not None:
-			return colorsys.rgb_to_hsv(*self.rgb)
-		else:
-			return None
+		return colorsys.rgb_to_hsv(*self.rgb) if self.data is not None else None
 
 	#another way to get color value (dictionary output possible)
 	def getColor(self, space='RGB', asDict=False):
-		if space == 'RGB':
-			if asDict:
-				return {key:self.RGB[i] for i, key in enumerate(space)}
-			else:
-				return self.RGB
-		elif space == 'RGBA':
-			if asDict:
-				return {key:self.RGBA[i] for i, key in enumerate(space)}
-			else:
-				return self.RGBA
-		elif space == 'rgba':
-			if asDict:
-				return {key:self.rgba[i] for i, key in enumerate(space)}
-			else:
-				return self.rgba
-		elif space == 'rgb':
-			if asDict:
-				return {key:self.rgb[i] for i, key in enumerate(space)}
-			else:
-				return self.rgb
 		if space == 'HSV':
-			if asDict:
-				return {key:self.HSV[i] for i, key in enumerate(space)}
-			else:
-				return self.HSV
+			return {key:self.HSV[i] for i, key in enumerate(space)} if asDict else self.HSV
 		elif space == 'HSVA':
-			if asDict:
-				return {key:self.HSVA[i] for i, key in enumerate(space)}
-			else:
-				return self.HSVA
-		elif space == 'hsva':
-			if asDict:
-				return {key:self.hsva[i] for i, key in enumerate(space)}
-			else:
-				return self.hsva
+			return (
+				{key: self.HSVA[i] for i, key in enumerate(space)}
+				if asDict
+				else self.HSVA
+			)
+		elif space == 'RGB':
+			return {key:self.RGB[i] for i, key in enumerate(space)} if asDict else self.RGB
+		elif space == 'RGBA':
+			return (
+				{key: self.RGBA[i] for i, key in enumerate(space)}
+				if asDict
+				else self.RGBA
+			)
 		elif space == 'hsv':
-			if asDict:
-				return {key:self.hsv[i] for i, key in enumerate(space)}
-			else:
-				return self.hsv
+			return {key:self.hsv[i] for i, key in enumerate(space)} if asDict else self.hsv
+		elif space == 'hsva':
+			return (
+				{key: self.hsva[i] for i, key in enumerate(space)}
+				if asDict
+				else self.hsva
+			)
+		elif space == 'rgb':
+			return {key:self.rgb[i] for i, key in enumerate(space)} if asDict else self.rgb
+		elif space == 'rgba':
+			return (
+				{key: self.rgba[i] for i, key in enumerate(space)}
+				if asDict
+				else self.rgba
+			)
 
 	#You can create Color object in many ways:
 	# Color.from_rgb(0, 1, 1, 1) - passing arguments
@@ -239,7 +207,7 @@ class Gradient():
 		try:
 			domData = parse(svg)
 		except Exception as e:
-			log.error("Cannot parse svg file : {}".format(e))
+			log.error(f"Cannot parse svg file : {e}")
 			return False
 		linearGradients = domData.getElementsByTagName('linearGradient')
 		nbGradients = len(linearGradients)
@@ -292,9 +260,8 @@ class Gradient():
 	def addStop(self, position, color, reorder=True):
 		if not self.permissive: #permissive option allows discrete color ramp definition
 			#avoid same color in two following stops
-			if len(self.colors) >= 1:
-				if color == self.colors[-1]:
-					return False
+			if len(self.colors) >= 1 and color == self.colors[-1]:
+				return False
 			#avoid duplicate position
 			if position in self.positions:
 				return False
@@ -326,8 +293,8 @@ class Gradient():
 			return False
 		try:
 			idx = self.colors.index(color)
-		except ValueError as e :
-			log.error('Cannot remove color from this gradient : {}'.format(e))
+		except ValueError as e:
+			log.error(f'Cannot remove color from this gradient : {e}')
 			return False
 		else:
 			self.stops.pop(idx)
@@ -337,7 +304,7 @@ class Gradient():
 		try:
 			idx = self.positions.index(pos)
 		except ValueError as e:
-			log.error('Cannot remove position from this gradient : {}'.format(e))
+			log.error(f'Cannot remove position from this gradient : {e}')
 			return False
 		else:
 			self.stops.pop(idx)
@@ -354,12 +321,15 @@ class Gradient():
 		if method not in ['DISCRETE', 'NEAREST', 'LINEAR', 'SPLINE']:
 			method = 'LINEAR'
 		#check color space
-		if colorSpace in ['RGB', 'RGBA', 'rgb', 'rgba']:
+		if colorSpace in ['RGB', 'RGBA', 'rgb', 'rgba'] or colorSpace not in [
+			'HSV',
+			'HSVA',
+			'hsv',
+			'hsva',
+		]:
 			colorSpace = 'rgba' #we will work with normalized values
-		elif colorSpace in ['HSV', 'HSVA', 'hsv', 'hsva']:
-			colorSpace = 'hsva'
 		else:
-			colorSpace = 'rgba' #default
+			colorSpace = 'hsva'
 		#check position
 		self.sortStops()
 		positions = self.positions
@@ -422,7 +392,7 @@ class Gradient():
 				else:
 					y = akima.interpolate(xData, yData, [pos])[0]
 				#Constrain result between 0-1
-				y = 1 if y>1 else 0 if y<0 else y
+				y = 1 if y>1 else max(y, 0)
 				#append
 				interpolateValues.append(round(y,2))
 			return Color(interpolateValues, colorSpace)
@@ -433,7 +403,7 @@ class Gradient():
 		ramp = Gradient(permissive=True)#permissive needed because discrete interpo can return same color for 2 or more following stops
 		offset = 1/(n-1)
 		position = 0
-		for i in range(n):
+		for _ in range(n):
 			color = self.evaluate(position, interpoSpace, interpoMethod)
 			ramp.addStop(position, color, reorder=False)
 			position += offset
@@ -459,22 +429,30 @@ class Gradient():
 
 		for stop in stops:
 			p = stop.position * 100
-			p = str(round(p,2)) + '%'
+			p = f'{str(round(p, 2))}%'
 			r,g,b = stop.color.RGB
 			c = "rgb(%d,%d,%d)" % (r, g, b)
 			a = str(stop.color.alpha)
 			etree.SubElement(gradient, 'stop', {'offset':p, 'stop-color':c, 'stop-opacity':a}) #use dict because hyphens in tags
 		svg.append(gradient)
-		rect = etree.Element('rect', {'fill':"url(#%s)" % (name), 'x':'4', 'y':'4', 'width':'292', 'height':'37', 'stroke':'black', 'stroke_width':'1'})
+		rect = etree.Element(
+			'rect',
+			{
+				'fill': f"url(#{name})",
+				'x': '4',
+				'y': '4',
+				'width': '292',
+				'height': '37',
+				'stroke': 'black',
+				'stroke_width': '1',
+			},
+		)
 		svg.append(rect)
 		# get string
 		xmlstr = etree.tostring(svg, encoding='utf8', method='xml').decode('utf-8')
 		# etree doesn't have pretty xml function, so use minidom tu get a pretty xml ...
 		reparsed = parseString(xmlstr)
 		xmlstr = reparsed.toprettyxml()
-		# write to file
-		f = open(svgPath,"w")
-		f.write(xmlstr)
-		f.close()
-
+		with open(svgPath,"w") as f:
+			f.write(xmlstr)
 		return

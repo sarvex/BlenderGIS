@@ -96,8 +96,8 @@ def get_reader(uri, format=None, mode='?', **kwargs):
     """ 
     
     # Create request object
-    request = Request(uri, 'r' + mode, **kwargs)
-    
+    request = Request(uri, f'r{mode}', **kwargs)
+
     # Get format
     if format is not None:
         format = formats[format]
@@ -106,7 +106,7 @@ def get_reader(uri, format=None, mode='?', **kwargs):
     if format is None:
         raise ValueError('Could not find a format to read the specified file '
                          'in mode %r' % mode)
-    
+
     # Return its reader object
     return format.get_reader(request)
 
@@ -137,8 +137,8 @@ def get_writer(uri, format=None, mode='?', **kwargs):
     """ 
     
     # Create request object
-    request = Request(uri, 'w' + mode, **kwargs)
-    
+    request = Request(uri, f'w{mode}', **kwargs)
+
     # Get format
     if format is not None:
         format = formats[format]
@@ -147,7 +147,7 @@ def get_writer(uri, format=None, mode='?', **kwargs):
     if format is None:
         raise ValueError('Could not find a format to write the specified file '
                          'in mode %r' % mode)
-    
+
     # Return its writer object
     return format.get_writer(request)
 
@@ -205,22 +205,18 @@ def imwrite(uri, im, format=None, **kwargs):
         to see what arguments are available for a particular format.
     """ 
     
-    # Test image
-    if isinstance(im, np.ndarray):
-        if im.ndim == 2:
-            pass
-        elif im.ndim == 3 and im.shape[2] in [1, 3, 4]:
-            pass
-        else:
-            raise ValueError('Image must be 2D (grayscale, RGB, or RGBA).')
-    else:
+    if not isinstance(im, np.ndarray):
         raise ValueError('Image must be a numpy array.')
-    
+
+    if im.ndim == 2:
+        pass
+    elif im.ndim != 3 or im.shape[2] not in [1, 3, 4]:
+        raise ValueError('Image must be 2D (grayscale, RGB, or RGBA).')
     # Get writer and write first
     writer = get_writer(uri, format, 'i', **kwargs)
     with writer:
         writer.append_data(im)
-    
+
     # Return a result if there is any
     return writer.request.get_result()
 
@@ -302,21 +298,17 @@ def mimwrite(uri, ims, format=None, **kwargs):
         # Iterate over images (ims may be a generator)
         for im in ims:
             
-            # Test image
-            if isinstance(im, np.ndarray):
-                if im.ndim == 2:
-                    pass
-                elif im.ndim == 3 and im.shape[2] in [1, 3, 4]:
-                    pass
-                else:
-                    raise ValueError('Image must be 2D '
-                                     '(grayscale, RGB, or RGBA).')
-            else:
+            if not isinstance(im, np.ndarray):
                 raise ValueError('Image must be a numpy array.')
-            
+
+            if im.ndim == 2:
+                pass
+            elif im.ndim != 3 or im.shape[2] not in [1, 3, 4]:
+                raise ValueError('Image must be 2D '
+                                 '(grayscale, RGB, or RGBA).')
             # Add image
             writer.append_data(im)
-    
+
     # Return a result if there is any
     return writer.request.get_result()
 
@@ -371,23 +363,19 @@ def volwrite(uri, im, format=None, **kwargs):
         to see what arguments are available for a particular format.
     """ 
     
-    # Test image
-    if isinstance(im, np.ndarray):
-        if im.ndim == 3:
-            pass
-        elif im.ndim == 4 and im.shape[3] < 32:  # How large can a tuple be?
-            pass
-        else:
-            raise ValueError('Image must be 3D, or 4D if each voxel is '
-                             'a tuple.')
-    else:
+    if not isinstance(im, np.ndarray):
         raise ValueError('Image must be a numpy array.')
-    
+
+    if im.ndim == 3:
+        pass
+    elif im.ndim != 4 or im.shape[3] >= 32:
+        raise ValueError('Image must be 3D, or 4D if each voxel is '
+                         'a tuple.')
     # Get writer and write first
     writer = get_writer(uri, format, 'v', **kwargs)
     with writer:
         writer.append_data(im)
-    
+
     # Return a result if there is any
     return writer.request.get_result()
 
@@ -462,21 +450,17 @@ def mvolwrite(uri, ims, format=None, **kwargs):
         # Iterate over images (ims may be a generator)
         for im in ims:
             
-            # Test image
-            if isinstance(im, np.ndarray):
-                if im.ndim == 3:
-                    pass
-                elif im.ndim == 4 and im.shape[3] < 32:
-                    pass  # How large can a tuple be?
-                else:
-                    raise ValueError('Image must be 3D, or 4D if each voxel is'
-                                     'a tuple.')
-            else:
+            if not isinstance(im, np.ndarray):
                 raise ValueError('Image must be a numpy array.')
-            
+
+            if im.ndim == 3:
+                pass
+            elif im.ndim != 4 or im.shape[3] >= 32:
+                raise ValueError('Image must be 3D, or 4D if each voxel is'
+                                 'a tuple.')
             # Add image
             writer.append_data(im)
-    
+
     # Return a result if there is any
     return writer.request.get_result()
 

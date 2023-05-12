@@ -5,6 +5,7 @@
 """ Functionality used for testing. This code itself is not covered in tests.
 """
 
+
 from __future__ import absolute_import, print_function, division
 
 import os
@@ -18,7 +19,7 @@ import pytest
 # Get root dir
 THIS_DIR = os.path.abspath(os.path.dirname(__file__))
 ROOT_DIR = THIS_DIR
-for i in range(9):
+for _ in range(9):
     ROOT_DIR = os.path.dirname(ROOT_DIR)
     if os.path.isfile(os.path.join(ROOT_DIR, '.gitignore')):
         break
@@ -45,7 +46,7 @@ def run_tests_if_main(show_coverage=False):
     launch the report in the web browser.
     """
     local_vars = inspect.currentframe().f_back.f_locals
-    if not local_vars.get('__name__', '') == '__main__':
+    if local_vars.get('__name__', '') != '__main__':
         return
     # we are in a "__main__"
     os.chdir(ROOT_DIR)
@@ -107,7 +108,7 @@ def test_unit(cov_report='term'):
     finally:
         os.chdir(orig_dir)
         import imageio
-        print('Tests were performed on', str(imageio))
+        print('Tests were performed on', imageio)
 
 
 def test_style():
@@ -119,21 +120,21 @@ def test_style():
     except ImportError:
         print('Skipping flake8 test, flake8 not installed')
         return
-    
+
     # Reporting
-    print('Running flake8 on %s' % ROOT_DIR)
+    print(f'Running flake8 on {ROOT_DIR}')
     sys.stdout = FileForTesting(sys.stdout)
-    
+
     # Init
     ignores = STYLE_IGNORES.copy()
     fail = False
     count = 0
-    
+
     # Iterate over files
     for dir, dirnames, filenames in os.walk(ROOT_DIR):
         dir = os.path.relpath(dir, ROOT_DIR)
         # Skip this dir?
-        exclude_dirs = set(['.git', 'docs', 'build', 'dist', '__pycache__'])
+        exclude_dirs = {'.git', 'docs', 'build', 'dist', '__pycache__'}
         if exclude_dirs.intersection(dir.split(os.path.sep)):
             continue
         # Check all files ...
@@ -146,12 +147,11 @@ def test_style():
                     continue
                 # Test
                 count += 1
-                thisfail = _test_style(filename, ignores + extra_ignores)
-                if thisfail:
+                if thisfail := _test_style(filename, ignores + extra_ignores):
                     fail = True
                     print('----')
                 sys.stdout.flush()
-    
+
     # Report result
     sys.stdout.revert()
     if not count:
@@ -229,21 +229,18 @@ def _test_style(filename, ignore):
     """
     if isinstance(ignore, (list, tuple)):
         ignore = ','.join(ignore)
-    
+
     orig_dir = os.getcwd()
     orig_argv = sys.argv
-    
+
     os.chdir(ROOT_DIR)
     sys.argv[1:] = [filename]
-    sys.argv.append('--ignore=' + ignore)
+    sys.argv.append(f'--ignore={ignore}')
     try:
         from flake8.main import main
         main()
     except SystemExit as ex:
-        if ex.code in (None, 0):
-            return False
-        else:
-            return True
+        return ex.code not in (None, 0)
     finally:
         os.chdir(orig_dir)
         sys.argv[:] = orig_argv

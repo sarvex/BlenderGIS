@@ -106,12 +106,12 @@ class EXPORTGIS_OT_shapefile(Operator, ExportHelper):
 			dx, dy = (0, 0)
 			wkt = None
 
-		if self.objectsSource == 'SELECTED':
-			objects = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
-		elif self.objectsSource == 'COLLEC':
+		if self.objectsSource == 'COLLEC':
 			objects = bpy.data.collections[self.selectedColl].all_objects
 			objects = [obj for obj in objects if obj.type == 'MESH']
 
+		elif self.objectsSource == 'SELECTED':
+			objects = [obj for obj in bpy.context.selected_objects if obj.type == 'MESH']
 		if not objects:
 			self.report({'ERROR'}, "Selection is empty or does not contain any mesh")
 			return {'CANCELLED'}
@@ -136,10 +136,10 @@ class EXPORTGIS_OT_shapefile(Operator, ExportHelper):
 		outShp.field('objId','N', nLen) #export id
 		for obj in objects:
 			for k, v in obj.items():
-				k = k[0:maxFieldNameLen]
+				k = k[:maxFieldNameLen]
 				#evaluate the field type with the first value
 				if k not in [f[0] for f in outShp.fields]:
-					if isinstance(v, float) or isinstance(v, int):
+					if isinstance(v, (float, int)):
 						fieldType = 'N'
 					elif isinstance(v, str):
 						if v.lstrip("-+").isdigit():
@@ -183,7 +183,7 @@ class EXPORTGIS_OT_shapefile(Operator, ExportHelper):
 
 
 				if self.mode == 'MESH2FEAT':
-					for j, pt in enumerate(pts):
+					for pt in pts:
 						outShp.pointz(*pt)
 					nFeat = len(pts)
 				elif self.mode == 'OBJ2FEAT':
@@ -202,7 +202,7 @@ class EXPORTGIS_OT_shapefile(Operator, ExportHelper):
 					lines.append(line)
 
 				if self.mode == 'MESH2FEAT':
-					for j, line in enumerate(lines):
+					for line in lines:
 						outShp.linez([line])
 					nFeat = len(lines)
 				elif self.mode == 'OBJ2FEAT':
@@ -226,7 +226,7 @@ class EXPORTGIS_OT_shapefile(Operator, ExportHelper):
 					polygons.append(poly)
 
 				if self.mode == 'MESH2FEAT':
-					for j, polygon in enumerate(polygons):
+					for polygon in polygons:
 						outShp.polyz([polygon])
 					nFeat = len(polygons)
 				elif self.mode == 'OBJ2FEAT':
@@ -236,32 +236,34 @@ class EXPORTGIS_OT_shapefile(Operator, ExportHelper):
 			#Writing attributes Data
 			attributes = {'objId':i}
 			for k, v in obj.items():
-				k = k[0:maxFieldNameLen]
-				if not any([f[0] == k for f in outShp.fields]):
+				k = k[:maxFieldNameLen]
+				if all(f[0] != k for f in outShp.fields):
 					continue
 				fType = next( (f[1] for f in outShp.fields if f[0] == k) )
 				if fType in ('N', 'F'):
 					try:
 						v = float(v)
 					except ValueError:
-						log.info('Cannot cast value {} to float for appending field {}, NULL value will be inserted instead'.format(v, k))
+						log.info(
+							f'Cannot cast value {v} to float for appending field {k}, NULL value will be inserted instead'
+						)
 						v = None
 				attributes[k] = v
 			#assign None to orphans shp fields (if the key does not exists in the custom props of this object)
-			attributes.update({f[0]:None for f in outShp.fields if f[0] not in attributes.keys()})
+			attributes |= {
+				f[0]: None for f in outShp.fields if f[0] not in attributes.keys()
+			}
 			#Write
-			for n in range(nFeat):
+			for _ in range(nFeat):
 				outShp.record(**attributes)
 
 
 		outShp.close()
 
 		if wkt is not None:
-			prjPath = os.path.splitext(filePath)[0] + '.prj'
-			prj = open(prjPath, "w")
-			prj.write(wkt)
-			prj.close()
-
+			prjPath = f'{os.path.splitext(filePath)[0]}.prj'
+			with open(prjPath, "w") as prj:
+				prj.write(wkt)
 		self.report({'INFO'}, "Export complete")
 
 		return {'FINISHED'}
@@ -271,7 +273,9 @@ def register():
 	try:
 		bpy.utils.register_class(EXPORTGIS_OT_shapefile)
 	except ValueError as e:
-		log.warning('{} is already registered, now unregister and retry... '.format(EXPORTGIS_OT_shapefile))
+		log.warning(
+			f'{EXPORTGIS_OT_shapefile} is already registered, now unregister and retry... '
+		)
 		unregister()
 		bpy.utils.register_class(EXPORTGIS_OT_shapefile)
 

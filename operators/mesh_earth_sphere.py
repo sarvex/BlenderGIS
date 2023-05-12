@@ -35,15 +35,15 @@ class OBJECT_OT_earth_sphere(Operator):
 
 		for obj in objs:
 			if obj.type != 'MESH':
-				log.warning("Object {} is not a mesh".format(obj.name))
+				log.warning(f"Object {obj.name} is not a mesh")
 				continue
 
 			w, h, thick = obj.dimensions
 			if w > 360:
-				log.warning("Longitude of object {} exceed 360°".format(obj.name))
+				log.warning(f"Longitude of object {obj.name} exceed 360°")
 				continue
 			if h > 180:
-				log.warning("Latitude of object {} exceed 180°".format(obj.name))
+				log.warning(f"Latitude of object {obj.name} exceed 180°")
 				continue
 
 			mesh = obj.data
@@ -100,7 +100,7 @@ def register():
 		try:
 			bpy.utils.register_class(cls)
 		except ValueError as e:
-			log.warning('{} is already registered, now unregister and retry... '.format(cls))
+			log.warning(f'{cls} is already registered, now unregister and retry... ')
 			bpy.utils.unregister_class(cls)
 			bpy.utils.register_class(cls)
 

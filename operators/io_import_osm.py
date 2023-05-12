@@ -29,8 +29,7 @@ PKG, SUBPKG = __package__.split('.', maxsplit=1)
 #https://developer.blender.org/T38489
 def getTags():
 	prefs = bpy.context.preferences.addons[PKG].preferences
-	tags = json.loads(prefs.osmTagsJson)
-	return tags
+	return json.loads(prefs.osmTagsJson)
 
 #Global variable that will be seed by getTags() at each operator invoke
 #then callback of dynamic enum will use this global variable
@@ -44,44 +43,39 @@ closedWaysAreExtruded = ['building']
 
 def queryBuilder(bbox, tags=['building', 'highway'], types=['node', 'way', 'relation'], format='json'):
 
-		'''
+	'''
 		QL template syntax :
 		[out:json][bbox:ymin,xmin,ymax,xmax];(node[tag1];node[tag2];((way[tag1];way[tag2];);>;);relation;);out;
 		'''
 
-		#s,w,n,e <--> ymin,xmin,ymax,xmax
-		bboxStr = ','.join(map(str, bbox.toLatlon()))
+	#s,w,n,e <--> ymin,xmin,ymax,xmax
+	bboxStr = ','.join(map(str, bbox.toLatlon()))
 
-		if not types:
-			#if no type filter is defined then just select all kind of type
-			types = ['node', 'way', 'relation']
+	if not types:
+		#if no type filter is defined then just select all kind of type
+		types = ['node', 'way', 'relation']
 
-		head = "[out:"+format+"][bbox:"+bboxStr+"];"
+	head = f"[out:{format}][bbox:{bboxStr}];"
 
-		union = '('
+	union = '('
 		#all tagged nodes
-		if 'node' in types:
-			if tags:
-				union += ';'.join( ['node['+tag+']' for tag in tags] ) + ';'
-			else:
-				union += 'node;'
+	if 'node' in types:
+		union += ';'.join([f'node[{tag}]' for tag in tags]) + ';' if tags else 'node;'
 		#all tagged ways with all their nodes (recurse down)
-		if 'way' in types:
-			union += '(('
-			if tags:
-				union += ';'.join( ['way['+tag+']' for tag in tags] ) + ';);'
-			else:
-				union += 'way;);'
-			union += '>;);'
-		#all relations (no filter tag applied)
-		if 'relation' in types or 'rel' in types:
-			union += 'relation;'
-		union += ')'
+	if 'way' in types:
+		union += '(('
+		if tags:
+			union += ';'.join([f'way[{tag}]' for tag in tags]) + ';);'
+		else:
+			union += 'way;);'
+		union += '>;);'
+	#all relations (no filter tag applied)
+	if 'relation' in types or 'rel' in types:
+		union += 'relation;'
+	union += ')'
 
-		output = ';out;'
-		qry = head + union + output
-
-		return qry
+	output = ';out;'
+	return head + union + output
 
 
 
@@ -106,14 +100,7 @@ class OSM_IMPORT():
 	"""Import from Open Street Map"""
 
 	def enumTags(self, context):
-		items = []
-		##prefs = context.preferences.addons[PKG].preferences
-		##osmTags = json.loads(prefs.osmTagsJson)
-		#we need to use a global variable as workaround to enum callback bug (T48873, T38489)
-		for tag in OSMTAGS:
-			#put each item in a tuple (key, label, tooltip)
-			items.append( (tag, tag, tag) )
-		return items
+		return [(tag, tag, tag) for tag in OSMTAGS]
 
 	filterTags: EnumProperty(
 			name = "Tags",
@@ -135,12 +122,11 @@ class OSM_IMPORT():
 
 	# Elevation object
 	def listObjects(self, context):
-		objs = []
-		for index, object in enumerate(bpy.context.scene.objects):
-			if object.type == 'MESH':
-				#put each object in a tuple (key, label, tooltip) and add this to the objects list
-				objs.append((str(index), object.name, "Object named " + object.name))
-		return objs
+		return [
+			(str(index), object.name, f"Object named {object.name}")
+			for index, object in enumerate(bpy.context.scene.objects)
+			if object.type == 'MESH'
+		]
 
 	objElevLst: EnumProperty(
 		name="Elev. object",
@@ -298,7 +284,7 @@ class OSM_IMPORT():
 					verts = faces['faces'][0].verts
 					if self.useElevObj:
 						#Making flat roof
-						z = max([v.co.z for v in verts]) + offset #get max z coord
+						z = max(v.co.z for v in verts) + offset
 						for v in verts:
 							v.co.z = z
 					else:
@@ -328,10 +314,7 @@ class OSM_IMPORT():
 					obj[key] = tags[key]
 
 				#Put object in right collection
-				if self.filterTags:
-					tagsList = self.filterTags
-				else:
-					tagsList = OSMTAGS
+				tagsList = self.filterTags if self.filterTags else OSMTAGS
 				if any(tag in tagsList for tag in tags):
 					for k in tagsList:
 						if k in tags:
@@ -361,7 +344,7 @@ class OSM_IMPORT():
 					for k in self.filterTags:
 
 						if k in extags: #
-							objName = type + ':' + k
+							objName = f'{type}:{k}'
 							kbm = bmeshes.setdefault(objName, bmesh.new())
 							offset = len(kbm.verts)
 							joinBmesh(bm, kbm)
@@ -382,12 +365,12 @@ class OSM_IMPORT():
 				for tag in extags:
 					#if tag in osmTags:#filter
 					if not tag.startswith('name'):
-						vgroup = vgroups.setdefault('Tag:'+tag, [])
+						vgroup = vgroups.setdefault(f'Tag:{tag}', [])
 						vgroup.extend(vidx)
 
 				if name is not None:
 					#vgroup['Name:'+name] = [vidx]
-					vgroup = vgroups.setdefault('Name:'+name, [])
+					vgroup = vgroups.setdefault(f'Name:{name}', [])
 					vgroup.extend(vidx)
 
 				if 'relation' in self.featureType:
@@ -396,12 +379,13 @@ class OSM_IMPORT():
 						for member in rel.members:
 							#todo: remove duplicate members
 							if id == member.ref:
-								vgroup = vgroups.setdefault('Relation:'+name, [])
+								vgroup = vgroups.setdefault(f'Relation:{name}', [])
 								vgroup.extend(vidx)
 
 
 
 			bm.free()
+
 
 
 		######
@@ -418,12 +402,12 @@ class OSM_IMPORT():
 			for node in result.nodes:
 
 				#extended tags list
-				extags = list(node.tags.keys()) + [k + '=' + v for k, v in node.tags.items()]
+				extags = list(node.tags.keys()) + [f'{k}={v}' for k, v in node.tags.items()]
 
 				if node.id in waysNodesId:
 					continue
 
-				if self.filterTags and not any(tag in self.filterTags for tag in extags):
+				if self.filterTags and all(tag not in self.filterTags for tag in extags):
 					continue
 
 				pt = (float(node.lon), float(node.lat))
@@ -434,9 +418,9 @@ class OSM_IMPORT():
 
 			for way in result.ways:
 
-				extags = list(way.tags.keys()) + [k + '=' + v for k, v in way.tags.items()]
+				extags = list(way.tags.keys()) + [f'{k}={v}' for k, v in way.tags.items()]
 
-				if self.filterTags and not any(tag in self.filterTags for tag in extags):
+				if self.filterTags and all(tag not in self.filterTags for tag in extags):
 					continue
 
 				pts = [(float(node.lon), float(node.lat)) for node in way.nodes]
@@ -568,7 +552,7 @@ class IMPORTGIS_OT_osm_file(Operator, OSM_IMPORT):
 		#	result = api.parse_xml(f.read()) #WARNING read() load all the file into memory
 		result = api.parse_xml(self.filepath)
 		t = perf_clock() - t0
-		log.info('File parsed in {} seconds'.format(round(t, 2)))
+		log.info(f'File parsed in {round(t, 2)} seconds')
 
 		#Get bbox
 		bounds = result.bounds
@@ -591,7 +575,7 @@ class IMPORTGIS_OT_osm_file(Operator, OSM_IMPORT):
 		t0 = perf_clock()
 		self.build(context, result, geoscn.crs)
 		t = perf_clock() - t0
-		log.info('Mesh build in {} seconds'.format(round(t, 2)))
+		log.info(f'Mesh build in {round(t, 2)} seconds')
 
 		bbox = getBBOX.fromScn(scn)
 		adjust3Dview(context, bbox)
@@ -664,10 +648,10 @@ class IMPORTGIS_OT_osm_query(Operator, OSM_IMPORT):
 		w.cursor_set('WAIT')
 
 		#Download from overpass api
-		log.debug('Requests overpass server : {}'.format(prefs.overpassServer))
+		log.debug(f'Requests overpass server : {prefs.overpassServer}')
 		api = overpy.Overpass(overpass_server=prefs.overpassServer, user_agent=USER_AGENT)
 		query = queryBuilder(bbox, tags=list(self.filterTags), types=list(self.featureType), format='xml')
-		log.debug('Overpass query : {}'.format(query)) # can fails with non utf8 chars
+		log.debug(f'Overpass query : {query}')
 
 		try:
 			result = api.query(query)
@@ -695,7 +679,7 @@ def register():
 		try:
 			bpy.utils.register_class(cls)
 		except ValueError as e:
-			log.warning('{} is already registered, now unregister and retry... '.format(cls))
+			log.warning(f'{cls} is already registered, now unregister and retry... ')
 			bpy.utils.unregister_class(cls)
 			bpy.utils.register_class(cls)
 

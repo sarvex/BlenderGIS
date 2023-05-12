@@ -56,13 +56,10 @@ class GeoRef():
 			self.setSubBoxGeo(subBoxGeo)
 		else:
 			self.subBoxGeo = None
-		if crs is not None:
-			if isinstance(crs, SRS):
-				self.crs = crs
-			else:
-				raise IOError("CRS must be SRS() class object not " + str(type(crs)))
-		else:
+		if crs is not None and isinstance(crs, SRS) or crs is None:
 			self.crs = crs
+		else:
+			raise IOError(f"CRS must be SRS() class object not {str(type(crs))}")
 
 	############################################
 	# Alternative constructors
@@ -94,7 +91,7 @@ class GeoRef():
 			origin = xy(float(wf[4].replace(',','.')), float(wf[5].replace(',','.')))
 			return cls(rasterSize, pxSize, origin, rot=rotation, pxCenter=True, crs=None)
 		except Exception as e:
-			raise IOError("Unable to read worldfile. {}".format(e))
+			raise IOError(f"Unable to read worldfile. {e}")
 
 	@classmethod
 	def fromTyf(cls, tif):
@@ -122,16 +119,16 @@ class GeoRef():
 
 		if transfoMatrix is not None:
 			a,b,c,d, \
-			e,f,g,h, \
-			i,j,k,l, \
-			m,n,o,p = transfoMatrix
+				e,f,g,h, \
+				i,j,k,l, \
+				m,n,o,p = transfoMatrix
 			#get only 2d affine parameters
 			origin = xy(d, h)
 			pxSize = xy(a, f)
 			rotation = xy(e, b)
 		elif modelTiePoint is not None and modelPixelScale is not None:
 			origin = xy(*modelTiePoint[3:5])
-			pxSize = xy(*modelPixelScale[0:2])
+			pxSize = xy(*modelPixelScale[:2])
 			pxSize[1] = -pxSize.y #make negative value
 			rotation = xy(0, 0)
 		else:
@@ -157,7 +154,7 @@ class GeoRef():
 			origin[1] -= abs(pxSize.y/2)
 
 		#TODO extract crs (transcript geokeys to proj4 string)
-		
+
 		return cls((w, h), pxSize, origin, rot=rotation, pxCenter=True, crs=None)
 
 	############################################
@@ -177,9 +174,8 @@ class GeoRef():
 		xres, yres = self.pxSize
 		xrot, yrot = self.rotation
 		wf = (xres, xrot, yrot, yres, xmin, ymax)
-		f = open(path,'w')
-		f.write( '\n'.join(list(map(str, wf))) )
-		f.close()
+		with open(path,'w') as f:
+			f.write( '\n'.join(list(map(str, wf))) )
 
 	############################################
 	# Dynamic properties
@@ -254,10 +250,10 @@ class GeoRef():
 	def bbox(self):
 		'''Return a bbox class object'''
 		pts = self.corners
-		xmin = min([pt.x for pt in pts])
-		xmax = max([pt.x for pt in pts])
-		ymin = min([pt.y for pt in pts])
-		ymax = max([pt.y for pt in pts])
+		xmin = min(pt.x for pt in pts)
+		xmax = max(pt.x for pt in pts)
+		ymin = min(pt.y for pt in pts)
+		ymax = max(pt.y for pt in pts)
 		return BBOX(xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax)
 
 	@property
@@ -380,9 +376,9 @@ class GeoRef():
 		#adjust against raster size if needed
 		#we count pixel number from 0 but size represents total number of pixel (counting from 1), so we must use size-1
 		sizex, sizey = self.rSize
-		if xminPx < 0: xminPx = 0
+		xminPx = max(xminPx, 0)
 		if xmaxPx >= sizex: xmaxPx = sizex - 1
-		if yminPx < 0: yminPx = 0
+		yminPx = max(yminPx, 0)
 		if ymaxPx >= sizey: ymaxPx = sizey - 1
 		#get the adjusted geo coords at pixels center
 		xmin, ymin = self.geoFromPx(xminPx, ymaxPx)
@@ -444,22 +440,24 @@ class GeoRef():
 
 	def __repr__(self):
 		s = [
-		' spatial ref system {}'.format(self.crs),
-		' origin geo {}'.format(self.origin),
-		' pixel size {}'.format(self.pxSize),
-		' rotation {}'.format(self.rotation),
-		' bounding box {}'.format(self.bbox),
-		' geoSize {}'.format(self.geoSize)
+			f' spatial ref system {self.crs}',
+			f' origin geo {self.origin}',
+			f' pixel size {self.pxSize}',
+			f' rotation {self.rotation}',
+			f' bounding box {self.bbox}',
+			f' geoSize {self.geoSize}',
 		]
 
 		if self.subBoxGeo is not None:
-			s.extend([
-			' subbox origin (geo space) {}'.format(self.subBoxGeoOrigin),
-			' subbox origin (px space) {}'.format(self.subBoxPxOrigin),
-			' subbox (geo space) {}'.format(self.subBoxGeo),
-			' subbox (px space) {}'.format(self.subBoxPx),
-			' sub geoSize {}'.format(self.subBoxGeoSize),
-			' sub pxSize {}'.format(self.subBoxPxSize),
-			])
+			s.extend(
+				[
+					f' subbox origin (geo space) {self.subBoxGeoOrigin}',
+					f' subbox origin (px space) {self.subBoxPxOrigin}',
+					f' subbox (geo space) {self.subBoxGeo}',
+					f' subbox (px space) {self.subBoxPx}',
+					f' sub geoSize {self.subBoxGeoSize}',
+					f' sub pxSize {self.subBoxPxSize}',
+				]
+			)
 
 		return '\n'.join(s)

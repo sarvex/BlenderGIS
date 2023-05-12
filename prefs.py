@@ -114,10 +114,16 @@ class BGIS_PREFS(AddonPreferences):
 			items.append( ('GDAL', 'GDAL', 'Force GDAL as reprojection engine') )
 		if HAS_PYPROJ:
 			items.append( ('PYPROJ', 'pyProj', 'Force pyProj as reprojection engine') )
-		#if EPSGIO.ping(): #too slow
-		#	items.append( ('EPSGIO', 'epsg.io', '') )
-		items.append( ('EPSGIO', 'epsg.io', 'Force epsg.io as reprojection engine') )
-		items.append( ('BUILTIN', 'Built in', 'Force reprojection through built in Python functions') )
+		items.extend(
+			(
+				('EPSGIO', 'epsg.io', 'Force epsg.io as reprojection engine'),
+				(
+					'BUILTIN',
+					'Built in',
+					'Force reprojection through built in Python functions',
+				),
+			)
+		)
 		return items
 
 	def updateProjEngine(self, context):
@@ -439,7 +445,7 @@ class BGIS_OT_add_predef_crs(Operator):
 		if not SRS.validate(self.crs):
 			self.report({'ERROR'}, 'Invalid CRS')
 		if self.crs.isdigit():
-			self.crs = 'EPSG:' + self.crs
+			self.crs = f'EPSG:{self.crs}'
 		#append the new crs def to json string
 		prefs = context.preferences.addons[PKG].preferences
 		data = json.loads(prefs.predefCrsJson)
@@ -618,7 +624,7 @@ class BGIS_OT_add_dem_server(Operator):
 
 	def execute(self, context):
 		templates = ['{W}', '{E}', '{S}', '{N}']
-		if all([t in self.url for t in templates]):
+		if all(t in self.url for t in templates):
 			prefs = context.preferences.addons[PKG].preferences
 			data = json.loads(prefs.demServerJson)
 			data.append( (self.url, self.name, self.desc) )
@@ -684,7 +690,7 @@ class BGIS_OT_edit_dem_server(Operator):
 		key = prefs.demServer
 		data = json.loads(prefs.demServerJson)
 		templates = ['{W}', '{E}', '{S}', '{N}']
-		if all([t in self.url for t in templates]):
+		if all(t in self.url for t in templates):
 			data = [entry for entry in data if entry[0] != key] #deleting
 			data.append((self.url, self.name, self.desc))
 			prefs.demServerJson = json.dumps(data)
@@ -705,7 +711,7 @@ class EditEnum():
 	def __init__(self, enumName):
 		self.prefs = bpy.context.preferences.addons[PKG].preferences
 		self.enumName = enumName
-		self.jsonName = enumName + 'Json'
+		self.jsonName = f'{enumName}Json'
 
 	def getData(self):
 		'''Load the json string'''
@@ -846,7 +852,7 @@ def register():
 			bpy.utils.register_class(cls)
 		except ValueError as e:
 			#log.error('Cannot register {}'.format(cls), exc_info=True)
-			log.warning('{} is already registered, now unregister and retry... '.format(cls))
+			log.warning(f'{cls} is already registered, now unregister and retry... ')
 			bpy.utils.unregister_class(cls)
 			bpy.utils.register_class(cls)
 

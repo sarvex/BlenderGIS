@@ -60,29 +60,26 @@ class SRS():
 		if crs.isdigit():
 			self.auth = 'EPSG' #assume authority is EPSG
 			self.code = int(crs)
-			self.proj4 = '+init=epsg:'+str(self.code)
-			#note : 'epsg' must be lower case to be compatible with gdal osr
+			self.proj4 = f'+init=epsg:{self.code}'
+				#note : 'epsg' must be lower case to be compatible with gdal osr
 
-		#case 2 crs is in the form AUTH:CODE
 		elif ':' in crs:
 			self.auth, self.code = crs.split(':')
-			if self.code.isdigit(): #what about non integer code ??? (IGNF:LAMB93)
-				self.code = int(self.code)
-				if self.auth.startswith('+init='):
-					_, self.auth = self.auth.split('=')
-				self.auth = self.auth.upper()
-				self.proj4 = '+init=' + self.auth.lower() + ':' + str(self.code)
-			else:
-				raise ValueError('Invalid CRS : '+crs)
+			if not self.code.isdigit():
+				raise ValueError(f'Invalid CRS : {crs}')
 
-		#case 3 : crs is proj4 string
-		elif all([param.startswith('+') for param in crs.split(' ') if param]):
+			self.code = int(self.code)
+			if self.auth.startswith('+init='):
+				_, self.auth = self.auth.split('=')
+			self.auth = self.auth.upper()
+			self.proj4 = f'+init={self.auth.lower()}:{self.code}'
+		elif all(param.startswith('+') for param in crs.split(' ') if param):
 			self.auth = None
 			self.code = None
 			self.proj4 = crs
 
 		else:
-			raise ValueError('Invalid CRS : '+crs)
+			raise ValueError(f'Invalid CRS : {crs}')
 
 	@classmethod
 	def fromGDAL(cls, ds):
@@ -97,10 +94,7 @@ class SRS():
 
 	@property
 	def SRID(self):
-		if self.isSRID:
-			return self.auth + ':' + str(self.code)
-		else:
-			return None
+		return f'{self.auth}:{str(self.code)}' if self.isSRID else None
 
 	@property
 	def hasCode(self):
@@ -132,10 +126,7 @@ class SRS():
 
 	def __str__(self):
 		'''Return the best string representation for this crs'''
-		if self.isSRID:
-			return self.SRID
-		else:
-			return self.proj4
+		return self.SRID if self.isSRID else self.proj4
 
 	def __eq__(self, srs2):
 		return self.__str__() == srs2.__str__()
@@ -155,7 +146,7 @@ class SRS():
 		#ImportFromEPSG and ImportFromProj4 do not raise any exception
 		#but return zero if the projection is valid
 		if r > 0:
-			raise ValueError('Cannot initialize osr : ' + self.proj4)
+			raise ValueError(f'Cannot initialize osr : {self.proj4}')
 
 		return prj
 
@@ -166,11 +157,12 @@ class SRS():
 			raise ImportError('PYPROJ not available')
 		if self.isSRID:
 			return pyproj.Proj(self.SRID)
-		else:
-			try:
-				return pyproj.Proj(self.proj4)
-			except Exception as e:
-				raise ValueError('Cannot initialize pyproj object for projection {}. Error : {}'.format(self.proj4, e))
+		try:
+			return pyproj.Proj(self.proj4)
+		except Exception as e:
+			raise ValueError(
+				f'Cannot initialize pyproj object for projection {self.proj4}. Error : {e}'
+			)
 
 
 	def loadProj4(self):
@@ -186,8 +178,6 @@ class SRS():
 				except ValueError:
 					pass
 				dc[k] = v
-			else:
-				pass
 		return dc
 
 	@property

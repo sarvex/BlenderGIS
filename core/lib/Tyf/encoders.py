@@ -84,7 +84,7 @@ _0x9c9b = _0x9c9c = _0x9c9d = lambda value : reduce(tuple.__add__, [(ord(e), 0) 
 # UserComment GPSProcessingMethod
 _0x9286 = _0x1b = lambda value: b"ASCII\x00\x00\x00" + (value.encode() if not isinstance(value, bytes) else value)
 # GPSLatitudeRef
-_0x1 = lambda value: b"N\x00" if bool(value >= 0) == True else b"S\x00"
+_0x1 = lambda value: b"N\x00" if value >= 0 else b"S\x00"
 # GPSLatitude
 def _0x2(value):
 	value = abs(value)
@@ -104,7 +104,7 @@ def _0x2(value):
 
 	return _5((degrees, minutes, seconds))
 #GPSLongitudeRef
-_0x3 = lambda value: b"E\x00" if bool(value >= 0) == True else b"W\x00"
+_0x3 = lambda value: b"E\x00" if value >= 0 else b"W\x00"
 #GPSLongitude
 _0x4 = _0x2
 #GPSAltitudeRef

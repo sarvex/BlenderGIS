@@ -50,31 +50,31 @@ def generate_candidate_libs(lib_names, lib_dirs=None):
     Returns (lib_dirs, lib_paths)
     """
     lib_dirs = lib_dirs or []
-    
+
     # Get system dirs to search
     sys_lib_dirs = ['/lib', 
                     '/usr/lib', 
                     '/usr/lib/x86_64-linux-gnu',
                     '/usr/local/lib', 
                     '/opt/local/lib', ]
-    
+
     # Get Python dirs to search (shared if for Pyzo)
-    py_sub_dirs = ['lib', 'DLLs', 'Library/bin', 'shared']    
+    py_sub_dirs = ['lib', 'DLLs', 'Library/bin', 'shared']
     py_lib_dirs = [os.path.join(sys.prefix, d) for d in py_sub_dirs]
     if hasattr(sys, 'base_prefix'):
         py_lib_dirs += [os.path.join(sys.base_prefix, d) for d in py_sub_dirs]
-    
+
     # Get user dirs to search (i.e. HOME)
     home_dir = os.path.expanduser('~')
     user_lib_dirs = [os.path.join(home_dir, d) for d in ['lib']]
-    
+
     # Select only the dirs for which a directory exists, and remove duplicates
     potential_lib_dirs = lib_dirs + sys_lib_dirs + py_lib_dirs + user_lib_dirs
     lib_dirs = []
     for ld in potential_lib_dirs:
         if os.path.isdir(ld) and ld not in lib_dirs:
             lib_dirs.append(ld)
-    
+
     # Now attempt to find libraries of that name in the given directory
     # (case-insensitive)
     lib_paths = []
@@ -85,10 +85,11 @@ def generate_candidate_libs(lib_names, lib_dirs=None):
         files = sorted(files, key=len)
         for lib_name in lib_names:
             # Test all filenames for name and ext
-            for fname in files:
-                if fname.lower().startswith(lib_name) and looks_lib(fname):
-                    lib_paths.append(os.path.join(lib_dir, fname))
-    
+            lib_paths.extend(
+                os.path.join(lib_dir, fname)
+                for fname in files
+                if fname.lower().startswith(lib_name) and looks_lib(fname)
+            )
     # Return (only the items which are files)
     lib_paths = [lp for lp in lib_paths if os.path.isfile(lp)]
     return lib_dirs, lib_paths
@@ -115,7 +116,7 @@ def load_lib(exact_lib_names, lib_names, lib_dirs=None):
         assert isinstance(lib_dirs, list)
     exact_lib_names = [n for n in exact_lib_names if n]
     lib_names = [n for n in lib_names if n]
-    
+
     # Get reference name (for better messages)
     if lib_names:
         the_lib_name = lib_names[0]
@@ -123,19 +124,15 @@ def load_lib(exact_lib_names, lib_names, lib_dirs=None):
         the_lib_name = exact_lib_names[0]
     else:
         raise ValueError("No library name given.")
-    
+
     # Collect filenames of potential libraries
     # First try a few bare library names that ctypes might be able to find
     # in the default locations for each platform. 
     lib_dirs, lib_paths = generate_candidate_libs(lib_names, lib_dirs)
     lib_paths = exact_lib_names + lib_paths
-    
-    # Select loader 
-    if sys.platform.startswith('win'):
-        loader = ctypes.windll
-    else:
-        loader = ctypes.cdll
-    
+
+    # Select loader
+    loader = ctypes.windll if sys.platform.startswith('win') else ctypes.cdll
     # Try to load until success
     the_lib = None
     errors = []
@@ -152,8 +149,7 @@ def load_lib(exact_lib_names, lib_names, lib_dirs=None):
                 e_type, e_value, e_tb = sys.exc_info()
                 del e_tb
                 errors.append((fname, e_value))
-    
-    # No success ...
+
     if the_lib is None:
         if errors:
             # No library loaded, and load-errors reported for some
@@ -166,6 +162,6 @@ def load_lib(exact_lib_names, lib_names, lib_dirs=None):
             # No errors, because no potential libraries found at all!
             msg = 'Could not find a %s library in any of:\n%s'
             raise OSError(msg % (the_lib_name, '\n'.join(lib_dirs)))
-    
+
     # Done
     return the_lib, fname

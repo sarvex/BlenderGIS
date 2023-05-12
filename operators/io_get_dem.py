@@ -92,10 +92,9 @@ class IMPORTGIS_OT_dem_query(Operator):
 				self.report({'ERROR'}, "SRTM is not available below 56 degrees south")
 				return {'CANCELLED'}
 
-		if 'opentopography' in prefs.demServer:
-			if not prefs.opentopography_api_key:
-				self.report({'ERROR'}, "Please register to opentopography.org and request for an API key")
-				return {'CANCELLED'}
+		if 'opentopography' in prefs.demServer and not prefs.opentopography_api_key:
+			self.report({'ERROR'}, "Please register to opentopography.org and request for an API key")
+			return {'CANCELLED'}
 
 		#Set cursor representation to 'loading' icon
 		w = context.window
@@ -125,11 +124,15 @@ class IMPORTGIS_OT_dem_query(Operator):
 				data = response.read() # a `bytes` object
 				outFile.write(data) #
 		except (URLError, HTTPError) as err:
-			log.error('Http request fails url:{}, code:{}, error:{}'.format(url, getattr(err, 'code', None), err.reason))
+			log.error(
+				f"Http request fails url:{url}, code:{getattr(err, 'code', None)}, error:{err.reason}"
+			)
 			self.report({'ERROR'}, "Cannot reach OpenTopography web service, check logs for more infos")
 			return {'CANCELLED'}
 		except TimeoutError:
-			log.error('Http request does not respond. url:{}, code:{}, error:{}'.format(url, getattr(err, 'code', None), err.reason))
+			log.error(
+				f"Http request does not respond. url:{url}, code:{getattr(err, 'code', None)}, error:{err.reason}"
+			)
 			info = "Cannot reach SRTM web service provider, server can be down or overloaded. Please retry later"
 			log.info(info)
 			self.report({'ERROR'}, info)
@@ -168,7 +171,9 @@ def register():
 	try:
 		bpy.utils.register_class(IMPORTGIS_OT_dem_query)
 	except ValueError as e:
-		log.warning('{} is already registered, now unregister and retry... '.format(IMPORTGIS_OT_srtm_query))
+		log.warning(
+			f'{IMPORTGIS_OT_srtm_query} is already registered, now unregister and retry... '
+		)
 		unregister()
 		bpy.utils.register_class(IMPORTGIS_OT_dem_query)
 

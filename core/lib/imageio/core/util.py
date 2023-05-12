@@ -196,8 +196,7 @@ def asarray(a):
     if isinstance(a, np.ndarray):
         if IS_PYPY:  # pragma: no cover 
             a = a.copy()  # pypy has issues with base views
-        plain = a.view(type=np.ndarray)
-        return plain
+        return a.view(type=np.ndarray)
     return np.asarray(a)
 
 
@@ -394,9 +393,9 @@ class StdoutProgressIndicator(BaseProgressIndicator):
         self._chars_prefix, self._chars = '', ''
         # Write message
         if self._action:
-            self._chars_prefix = '%s (%s): ' % (self._name, self._action)
+            self._chars_prefix = f'{self._name} ({self._action}): '
         else:
-            self._chars_prefix = '%s: ' % self._name
+            self._chars_prefix = f'{self._name}: '
         sys.stdout.write(self._chars_prefix)
         sys.stdout.flush()
     
@@ -420,7 +419,7 @@ class StdoutProgressIndicator(BaseProgressIndicator):
     def _write(self, message):
         # Write message
         delChars = '\b'*len(self._chars_prefix+self._chars)
-        sys.stdout.write(delChars+'  '+message+'\n')
+        sys.stdout.write(f'{delChars}  {message}' + '\n')
         # Reprint progress text
         sys.stdout.write(self._chars_prefix+self._chars)
         sys.stdout.flush()
@@ -492,9 +491,7 @@ def resource_dirs():
     directory (for frozen apps), and may include additional directories
     in the future.
     """
-    dirs = []
-    # Resource dir baked in the package
-    dirs.append(os.path.abspath(os.path.join(THIS_DIR, '..', 'resources')))
+    dirs = [os.path.abspath(os.path.join(THIS_DIR, '..', 'resources'))]
     # Appdata directory
     try:
         dirs.append(appdata_dir('imageio'))

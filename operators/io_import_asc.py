@@ -100,10 +100,7 @@ class IMPORTGIS_OT_ascii_grid(Operator, ImportHelper):
         512MB file ~3 seconds.
         """
         with open(filename) as f:
-            lines = 0
-            for _ in f:
-                lines += 1
-            return lines
+            return sum(1 for _ in f)
 
     def read_row_newlines(self, f, ncols):
         """
@@ -183,114 +180,107 @@ class IMPORTGIS_OT_ascii_grid(Operator, ImportHelper):
         #Path
         filename = self.filepath
         name = os.path.splitext(os.path.basename(filename))[0]
-        log.info('Importing {}...'.format(filename))
+        log.info(f'Importing {filename}...')
 
-        f = open(filename, 'r')
-        meta_re = re.compile('^([^\s]+)\s+([^\s]+)$')  # 'abc  123'
-        meta = {}
-        for i in range(6):
-            line = f.readline()
-            m = meta_re.match(line)
-            if m:
-                meta[m.group(1).lower()] = m.group(2)
-        log.debug(meta)
+        with open(filename, 'r') as f:
+            meta_re = re.compile('^([^\s]+)\s+([^\s]+)$')  # 'abc  123'
+            meta = {}
+            for _ in range(6):
+                line = f.readline()
+                if m := meta_re.match(line):
+                    meta[m[1].lower()] = m[2]
+            log.debug(meta)
 
-        # step allows reduction during import, only taking every Nth point
-        step = self.step
-        nrows = int(meta['nrows'])
-        ncols = int(meta['ncols'])
-        cellsize = float(meta['cellsize'])
-        nodata = float(meta['nodata_value'])
+            # step allows reduction during import, only taking every Nth point
+            step = self.step
+            nrows = int(meta['nrows'])
+            ncols = int(meta['ncols'])
+            cellsize = float(meta['cellsize'])
+            nodata = float(meta['nodata_value'])
 
-        # options are lower left cell corner, or lower left cell centre
-        reprojection = {}
-        offset = XY(0, 0)
-        if 'xllcorner' in meta:
-            llcorner = XY(float(meta['xllcorner']), float(meta['yllcorner']))
-            reprojection['from'] = llcorner
-        elif 'xllcenter' in meta:
-            centre = XY(float(meta['xllcenter']), float(meta['yllcenter']))
-            offset = XY(-cellsize / 2, -cellsize / 2)
-            reprojection['from'] = centre
+            # options are lower left cell corner, or lower left cell centre
+            reprojection = {}
+            offset = XY(0, 0)
+            if 'xllcorner' in meta:
+                llcorner = XY(float(meta['xllcorner']), float(meta['yllcorner']))
+                reprojection['from'] = llcorner
+            elif 'xllcenter' in meta:
+                centre = XY(float(meta['xllcenter']), float(meta['yllcenter']))
+                offset = XY(-cellsize / 2, -cellsize / 2)
+                reprojection['from'] = centre
 
-        # now set the correct offset for the mesh
-        if rprj:
-            reprojection['to'] = XY(*rprjToScene.pt(*reprojection['from']))
-            log.debug('{name} reprojected from {from} to {to}'.format(**reprojection, name=name))
-        else:
-            reprojection['to'] = reprojection['from']
-
-        if not geoscn.isGeoref:
-            # use the centre of the imported grid as scene origin (calculate only if grid file specified llcorner)
-            centre = (reprojection['from'].x + offset.x + ((ncols / 2) * cellsize),
-                      reprojection['from'].y + offset.y + ((nrows / 2) * cellsize))
+            # now set the correct offset for the mesh
             if rprj:
-                centre = rprjToScene.pt(*centre)
-            geoscn.setOriginPrj(*centre)
-            dx, dy = geoscn.getOriginPrj()
+                reprojection['to'] = XY(*rprjToScene.pt(*reprojection['from']))
+                log.debug('{name} reprojected from {from} to {to}'.format(**reprojection, name=name))
+            else:
+                reprojection['to'] = reprojection['from']
 
-        index = 0
-        vertices = []
-        faces = []
+            if not geoscn.isGeoref:
+                # use the centre of the imported grid as scene origin (calculate only if grid file specified llcorner)
+                centre = (reprojection['from'].x + offset.x + ((ncols / 2) * cellsize),
+                          reprojection['from'].y + offset.y + ((nrows / 2) * cellsize))
+                if rprj:
+                    centre = rprjToScene.pt(*centre)
+                geoscn.setOriginPrj(*centre)
+                dx, dy = geoscn.getOriginPrj()
 
-        # determine row read method
-        read = self.read_row_whitespace
-        if self.newlines:
-            read = self.read_row_newlines
+            vertices = []
+            faces = []
 
-        for y in range(nrows - 1, -1, -step):
-            # spec doesn't require newline separated rows so make it handle a single line of all values
-            coldata = read(f, ncols)
-            if len(coldata) != ncols:
-                log.error('Incorrect number of columns for row {row}. Expected {expected}, got {actual}.'.format(row=nrows-y, expected=ncols, actual=len(coldata)))
-                self.report({'ERROR'}, 'Incorrect number of columns for row, check logs for more infos')
-                return {'CANCELLED'}
+            read = self.read_row_newlines if self.newlines else self.read_row_whitespace
+            for y in range(nrows - 1, -1, -step):
+                # spec doesn't require newline separated rows so make it handle a single line of all values
+                coldata = read(f, ncols)
+                if len(coldata) != ncols:
+                    log.error('Incorrect number of columns for row {row}. Expected {expected}, got {actual}.'.format(row=nrows-y, expected=ncols, actual=len(coldata)))
+                    self.report({'ERROR'}, 'Incorrect number of columns for row, check logs for more infos')
+                    return {'CANCELLED'}
 
-            for i in range(step - 1):
-                _ = read(f, ncols)
+                for _ in range(step - 1):
+                    _ = read(f, ncols)
 
-            for x in range(0, ncols, step):
-                # TODO: exclude nodata values (implications for face generation)
-                if not (self.importMode == 'CLOUD' and coldata[x] == nodata):
-                    pt = (x * cellsize + offset.x, y * cellsize + offset.y)
-                    if rprj:
-                        # reproject world-space source coordinate, then transform back to target local-space
-                        pt = rprjToScene.pt(pt[0] + reprojection['from'].x, pt[1] + reprojection['from'].y)
-                        pt = (pt[0] - reprojection['to'].x, pt[1] - reprojection['to'].y)
-                    try:
-                        vertices.append(pt + (float(coldata[x]),))
-                    except ValueError as e:
-                        log.error('Value "{val}" in row {row}, column {col} could not be converted to a float.'.format(val=coldata[x], row=nrows-y, col=x))
-                        self.report({'ERROR'}, 'Cannot convert value to float')
-                        return {'CANCELLED'}
+                for x in range(0, ncols, step):
+                                # TODO: exclude nodata values (implications for face generation)
+                    if self.importMode != 'CLOUD' or coldata[x] != nodata:
+                        pt = (x * cellsize + offset.x, y * cellsize + offset.y)
+                        if rprj:
+                            # reproject world-space source coordinate, then transform back to target local-space
+                            pt = rprjToScene.pt(pt[0] + reprojection['from'].x, pt[1] + reprojection['from'].y)
+                            pt = (pt[0] - reprojection['to'].x, pt[1] - reprojection['to'].y)
+                        try:
+                            vertices.append(pt + (float(coldata[x]),))
+                        except ValueError as e:
+                            log.error('Value "{val}" in row {row}, column {col} could not be converted to a float.'.format(val=coldata[x], row=nrows-y, col=x))
+                            self.report({'ERROR'}, 'Cannot convert value to float')
+                            return {'CANCELLED'}
 
-        if self.importMode == 'MESH':
-            step_ncols = math.ceil(ncols / step)
-            for r in range(0, math.ceil(nrows / step) - 1):
-                for c in range(0, step_ncols - 1):
-                    v1 = index
-                    v2 = v1 + step_ncols
-                    v3 = v2 + 1
-                    v4 = v1 + 1
-                    faces.append((v1, v2, v3, v4))
+            if self.importMode == 'MESH':
+                step_ncols = math.ceil(ncols / step)
+                index = 0
+                for _ in range(0, math.ceil(nrows / step) - 1):
+                    for _ in range(0, step_ncols - 1):
+                        v1 = index
+                        v2 = v1 + step_ncols
+                        v3 = v2 + 1
+                        v4 = v1 + 1
+                        faces.append((v1, v2, v3, v4))
+                        index += 1
                     index += 1
-                index += 1
 
-        # Create mesh
-        me = bpy.data.meshes.new(name)
-        ob = bpy.data.objects.new(name, me)
-        ob.location = (reprojection['to'].x - dx, reprojection['to'].y - dy, 0)
+            # Create mesh
+            me = bpy.data.meshes.new(name)
+            ob = bpy.data.objects.new(name, me)
+            ob.location = (reprojection['to'].x - dx, reprojection['to'].y - dy, 0)
 
-        # Link object to scene and make active
-        scn = bpy.context.scene
-        scn.collection.objects.link(ob)
-        bpy.context.view_layer.objects.active = ob
-        ob.select_set(True)
+            # Link object to scene and make active
+            scn = bpy.context.scene
+            scn.collection.objects.link(ob)
+            bpy.context.view_layer.objects.active = ob
+            ob.select_set(True)
 
-        me.from_pydata(vertices, [], faces)
-        me.update()
-        f.close()
-
+            me.from_pydata(vertices, [], faces)
+            me.update()
         if prefs.adjust3Dview:
             bb = getBBOX.fromObj(ob)
             adjust3Dview(context, bb)
@@ -298,12 +288,14 @@ class IMPORTGIS_OT_ascii_grid(Operator, ImportHelper):
         return {'FINISHED'}
 
 def register():
-	try:
-		bpy.utils.register_class(IMPORTGIS_OT_ascii_grid)
-	except ValueError as e:
-		log.warning('{} is already registered, now unregister and retry... '.format(IMPORTGIS_OT_ascii_grid))
-		unregister()
-		bpy.utils.register_class(IMPORTGIS_OT_ascii_grid)
+    try:
+        bpy.utils.register_class(IMPORTGIS_OT_ascii_grid)
+    except ValueError as e:
+        log.warning(
+            f'{IMPORTGIS_OT_ascii_grid} is already registered, now unregister and retry... '
+        )
+        unregister()
+        bpy.utils.register_class(IMPORTGIS_OT_ascii_grid)
 
 def unregister():
 	bpy.utils.unregister_class(IMPORTGIS_OT_ascii_grid)

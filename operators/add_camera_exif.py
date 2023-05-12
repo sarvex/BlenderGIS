@@ -64,7 +64,7 @@ def newTargetCamera(scene, name, location, focalLength):
     """Create a new camera.target"""
     cam, cam_obj = newCamera(scene, name, location, focalLength)
     x, y, z = location[:]
-    target = newEmpty(scene, name+".target", (x, y - 50, z))
+    target = newEmpty(scene, f"{name}.target", (x, y - 50, z))
     constraint = cam_obj.constraints.new(type='TRACK_TO')
     constraint.track_axis = 'TRACK_NEGATIVE_Z'
     constraint.up_axis = 'UP_Y'
@@ -127,7 +127,7 @@ class CAMERA_OT_geophotos_add(Operator):
 
             imgFormat = getImgFormat(filepath)
             if imgFormat not in ['JPEG', 'TIFF']:
-                self.report({'ERROR'},"Invalid format " + str(imgFormat))
+                self.report({'ERROR'}, f"Invalid format {str(imgFormat)}")
                 return {'CANCELLED'}
 
             try:
@@ -294,13 +294,13 @@ classes = [
 ]
 
 def register():
-	for cls in classes:
-		try:
-			bpy.utils.register_class(cls)
-		except ValueError as e:
-			log.warning('{} is already registered, now unregister and retry... '.format(cls))
-			bpy.utils.unregister_class(cls)
-			bpy.utils.register_class(cls)
+    for cls in classes:
+        try:
+            bpy.utils.register_class(cls)
+        except ValueError as e:
+            log.warning(f'{cls} is already registered, now unregister and retry... ')
+            bpy.utils.unregister_class(cls)
+            bpy.utils.register_class(cls)
 
 def unregister():
 	for cls in classes:

@@ -60,12 +60,11 @@ class IMPORTGIS_OT_georaster(Operator, ImportHelper):
 	bl_options = {"UNDO"}
 
 	def listObjects(self, context):
-		#Function used to update the objects list (obj_list) used by the dropdown box.
-		objs = [] #list containing tuples of each object
-		for index, object in enumerate(bpy.context.scene.objects): #iterate over all objects
-			if object.type == 'MESH':
-				objs.append((str(index), object.name, "Object named " +object.name)) #put each object in a tuple (key, label, tooltip) and add this to the objects list
-		return objs
+		return [
+			(str(index), object.name, f"Object named {object.name}")
+			for index, object in enumerate(bpy.context.scene.objects)
+			if object.type == 'MESH'
+		]
 
 	# ImportHelper class properties
 	filter_glob: StringProperty(
@@ -150,12 +149,6 @@ class IMPORTGIS_OT_georaster(Operator, ImportHelper):
 		scn = bpy.context.scene
 		geoscn = GeoScene(scn)
 		#
-		if self.importMode == 'PLANE':
-			pass
-		#
-		if self.importMode == 'BKG':
-			pass
-		#
 		if self.importMode == 'MESH':
 			if geoscn.isGeoref and len(self.objectsLst) > 0:
 				layout.prop(self, 'objectsLst')
@@ -222,10 +215,7 @@ class IMPORTGIS_OT_georaster(Operator, ImportHelper):
 
 		if geoscn.isGeoref:
 			dx, dy = geoscn.getOriginPrj()
-			if self.reprojection:
-				rastCRS = self.rastCRS
-			else:
-				rastCRS = geoscn.crs
+			rastCRS = self.rastCRS if self.reprojection else geoscn.crs
 		else: #if not geoscn.hasCRS
 			rastCRS = self.rastCRS
 			try:
@@ -416,12 +406,13 @@ class IMPORTGIS_OT_georaster(Operator, ImportHelper):
 			if previousUVmapIdx != -1:
 				mesh.uv_layers.active_index = previousUVmapIdx
 			#Make subdivision
-			if self.subdivision == 'subsurf':#Add subsurf modifier
-				if not 'SUBSURF' in [mod.type for mod in obj.modifiers]:
-					subsurf = obj.modifiers.new('DEM', type='SUBSURF')
-					subsurf.subdivision_type = 'SIMPLE'
-					subsurf.levels = 6
-					subsurf.render_levels = 6
+			if self.subdivision == 'subsurf' and 'SUBSURF' not in [
+				mod.type for mod in obj.modifiers
+			]:
+				subsurf = obj.modifiers.new('DEM', type='SUBSURF')
+				subsurf.subdivision_type = 'SIMPLE'
+				subsurf.levels = 6
+				subsurf.render_levels = 6
 			#Set displacer
 			dsp = setDisplacer(obj, grid, uvTxtLayer, interpolation=self.demInterpolation)
 
@@ -463,11 +454,11 @@ class IMPORTGIS_OT_georaster(Operator, ImportHelper):
 		######################################
 
 		#Flag if a new object as been created...
-		if self.importMode == 'PLANE' or (self.importMode == 'DEM' and not self.demOnMesh) or self.importMode == 'DEM_RAW':
-			newObjCreated = True
-		else:
-			newObjCreated = False
-
+		newObjCreated = (
+			self.importMode == 'PLANE'
+			or (self.importMode == 'DEM' and not self.demOnMesh)
+			or self.importMode == 'DEM_RAW'
+		)
 		#...if so, maybee we need to adjust 3d view settings to it
 		if newObjCreated and prefs.adjust3Dview:
 			bb = getBBOX.fromObj(obj)
@@ -485,7 +476,9 @@ def register():
 	try:
 		bpy.utils.register_class(IMPORTGIS_OT_georaster)
 	except ValueError as e:
-		log.warning('{} is already registered, now unregister and retry... '.format(IMPORTGIS_OT_georaster))
+		log.warning(
+			f'{IMPORTGIS_OT_georaster} is already registered, now unregister and retry... '
+		)
 		unregister()
 		bpy.utils.register_class(IMPORTGIS_OT_georaster)
 

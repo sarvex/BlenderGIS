@@ -136,7 +136,7 @@ def kmeans1d(data, k, cutoff=False, maxIter=False):
 
 		# Update centroids and compute the bigger shift
 		newCentroids = [getClusterCentroid(c) for c in clusters]
-		biggest_shift = max([abs(newCentroids[i] - centroids[i]) for i in range(k)])
+		biggest_shift = max(abs(newCentroids[i] - centroids[i]) for i in range(k))
 		centroids = newCentroids
 
 		# Force stopping the main loop ...
@@ -167,8 +167,8 @@ if __name__ == '__main__':
 	import random, time
 
 	#make data with a gap between 1000 and 2000
-	data = [random.uniform(0, 1000) for i in range(10000)]
-	data.extend([random.uniform(2000, 4000) for i in range(10000)])
+	data = [random.uniform(0, 1000) for _ in range(10000)]
+	data.extend([random.uniform(2000, 4000) for _ in range(10000)])
 	data.sort()
 
 	k = 4

@@ -76,7 +76,7 @@ class BigTiffWriter():
 			n = 4 #RGBA
 		self.nbBands = n
 
-		options = [str(k) + '=' + str(v) for k, v in geoTiffOptions.items()]
+		options = [f'{str(k)}={str(v)}' for k, v in geoTiffOptions.items()]
 
 		driver = gdal.GetDriverByName("GTiff")
 		gdtype = gdal.GDT_Byte #GDT_UInt16, GDT_Int16, GDT_UInt32, GDT_Int32
@@ -114,7 +114,6 @@ class BigTiffWriter():
 			else:
 				self.ds.GetRasterBand(4).WriteArray(alpha, x, y)
 		else:
-			pass # replaced by fill method
 			'''
 			#make alpha band or internal mask fully opaque
 			h, w = data.shape[0], data.shape[1]
@@ -128,10 +127,12 @@ class BigTiffWriter():
 
 
 	def __repr__(self):
-		return '\n'.join([
-		"* Data infos :",
-		" size {}".format(self.size),
-		" type {}".format(self.dtype),
-		" number of bands {}".format(self.nbBands),
-		"* Georef & Geometry : \n{}".format(self.georef)
-		])
+		return '\n'.join(
+			[
+				"* Data infos :",
+				f" size {self.size}",
+				f" type {self.dtype}",
+				f" number of bands {self.nbBands}",
+				f"* Georef & Geometry : \n{self.georef}",
+			]
+		)

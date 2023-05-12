@@ -124,10 +124,7 @@ class TileMatrix():
 
 		#Determine unit of CRS (decimal degrees or meters)
 		self.crs = SRS(self.CRS)
-		if self.crs.isGeo:
-			self.units = 'degrees'
-		else: #(if units cannot be determined we assume its meters)
-			self.units = 'meters'
+		self.units = 'degrees' if self.crs.isGeo else 'meters'
 
 
 	@property
@@ -144,10 +141,7 @@ class TileMatrix():
 
 	def projToGeo(self, x, y):
 		"""convert grid crs coords to longitude latitude in decimal degrees"""
-		if self.CRS == 'EPSG:4326':
-			return x, y
-		else:
-			return reprojPt(self.CRS, 4326, x, y)
+		return (x, y) if self.CRS == 'EPSG:4326' else reprojPt(self.CRS, 4326, x, y)
 
 
 	def getResList(self):
@@ -158,12 +152,10 @@ class TileMatrix():
 
 	def getRes(self, zoom):
 		"""Resolution (meters/pixel) for given zoom level (measured at Equator)"""
-		if hasattr(self, 'resolutions'):
-			if zoom > len(self.resolutions):
-				zoom = len(self.resolutions)
-			return self.resolutions[zoom]
-		else:
+		if not hasattr(self, 'resolutions'):
 			return self.initRes / self.resFactor**zoom
+		zoom = min(zoom, len(self.resolutions))
+		return self.resolutions[zoom]
 
 
 	def getNearestZoom(self, res, rule='closer'):
@@ -185,17 +177,14 @@ class TileMatrix():
 				return z2
 
 			if v1 > res > v2:
-				if rule == 'lower':
-					return z1
-				elif rule == 'higher':
+				if rule == 'higher':
 					return z2
-				else: #closer
+				elif rule == 'lower':
+					return z1
+				else:
 					d1 = v1 - res
 					d2 = res - v2
-					if d1 < d2:
-						return z1
-					else:
-						return z2
+					return z1 if d1 < d2 else z2
 
 	def getPrevResFac(self, z):
 		"""return res factor to previous zoom level"""
@@ -209,26 +198,17 @@ class TileMatrix():
 		"""return res factor from z1 to z2"""
 		if z1 == z2:
 			return 1
-		if z1 < z2:
-			if z2 >= self.nbLevels - 1:
-				return 1
-			else:
-				return self.getRes(z2) / self.getRes(z1)
-		elif z1 > z2:
-			if z2 <= 0:
-				return 1
-			else:
-				return self.getRes(z2) / self.getRes(z1)
+		if z1 < z2 and z2 >= self.nbLevels - 1 or z1 >= z2 and z1 > z2 and z2 <= 0:
+			return 1
+		elif z1 < z2 or z1 > z2:
+			return self.getRes(z2) / self.getRes(z1)
 
 	def getTileNumber(self, x, y, zoom):
 		"""Convert projeted coords to tiles number"""
 		res = self.getRes(zoom)
 		geoTileSize = self.tileSize * res
 		dx = x - self.originx
-		if self.originLoc == "NW":
-			dy = self.originy - y
-		else:
-			dy = y - self.originy
+		dy = self.originy - y if self.originLoc == "NW" else y - self.originy
 		col = dx / geoTileSize
 		row = dy / geoTileSize
 		col = int(math.floor(col))
@@ -440,7 +420,7 @@ class MapService():
 		if self.status == 1:
 			return 'Get cache database...'
 		if self.status == 2:
-			return 'Downloading... ' + str(self.cptTiles)+'/'+str(self.nbTiles)
+			return f'Downloading... {str(self.cptTiles)}/{str(self.nbTiles)}'
 		if self.status == 3:
 			return 'Building mosaic...'
 		if self.status == 4:
@@ -460,32 +440,29 @@ class MapService():
 	def getCache(self, laykey, useDstGrid):
 		'''Return existing cache for requested layer or built it if not exists'''
 		if useDstGrid:
-			if self.dstGridKey is not None:
-				grdkey = self.dstGridKey
-				tm = self.dstTms
-			else:
+			if self.dstGridKey is None:
 				raise ValueError('No destination grid defined')
+			grdkey = self.dstGridKey
+			tm = self.dstTms
 		else:
 			grdkey = self.srcGridKey
 			tm = self.srcTms
 
-		mapKey = self.srckey + '_' + laykey + '_' + grdkey
+		mapKey = f'{self.srckey}_{laykey}_{grdkey}'
 		cache = self.caches.get(mapKey)
-		if cache is None:
-			dbPath = os.path.join(self.cacheFolder, mapKey + ".gpkg")
-			self.caches[mapKey] = GeoPackage(dbPath, tm)
-			return self.caches[mapKey]
-		else:
+		if cache is not None:
 			return cache
+		dbPath = os.path.join(self.cacheFolder, f"{mapKey}.gpkg")
+		self.caches[mapKey] = GeoPackage(dbPath, tm)
+		return self.caches[mapKey]
 
 	def getTM(self, dstGrid=False):
-		if dstGrid:
-			if self.dstTms is not None:
-				return self.dstTms
-			else:
-				raise ValueError('No destination grid defined')
-		else:
+		if not dstGrid:
 			return self.srcTms
+		if self.dstTms is not None:
+			return self.dstTms
+		else:
+			raise ValueError('No destination grid defined')
 
 
 	def buildUrl(self, laykey, col, row, zoom):
@@ -587,7 +564,7 @@ class MapService():
 			data = handle.read()
 			handle.close()
 		except Exception as e:
-			log.error("Can't download tile x{} y{}. Error {}".format(col, row, e))
+			log.error(f"Can't download tile x{col} y{row}. Error {e}")
 			data = None
 
 		#Make sure the stream is correct
@@ -597,7 +574,7 @@ class MapService():
 				data = None
 
 		if data is None:
-			log.debug("Invalid tile data for request {}".format(url))
+			log.debug(f"Invalid tile data for request {url}")
 
 		return data
 
@@ -615,12 +592,11 @@ class MapService():
 		if not self.isTileInMapsBounds(col, row, zoom, tm):
 			return None
 
-		if not toDstGrid:
-			data = self.downloadTile(laykey, col, row, zoom)
-		else:
-			data = self.buildDstTile(laykey, col, row, zoom)
-
-		return data
+		return (
+			self.downloadTile(laykey, col, row, zoom)
+			if not toDstGrid
+			else self.buildDstTile(laykey, col, row, zoom)
+		)
 
 
 	def buildDstTile(self, laykey, col, row, zoom):
@@ -646,7 +622,7 @@ class MapService():
 		try:
 			_bbox = reprojBbox(crs2, crs1, bbox)
 		except Exception as e:
-			log.warning('Cannot reproj tile bbox - ' + str(e))
+			log.warning(f'Cannot reproj tile bbox - {str(e)}')
 			return None
 
 		#list, download and merge the tiles required to build this one (recursive call)
@@ -695,12 +671,12 @@ class MapService():
 			#return self.nTaskDone == nMissing
 			#self.nTaskDone is not reliable because the recursive call to getImage will
 			#start multiple threads to seedTiles() and all these process will increments nTaskDone
-			return not any([t.is_alive() for t in threads])
+			return not any(t.is_alive() for t in threads)
 
 		def putInCache(tilesData, jobs, cache):
 			while True:
 				if tilesData.full() or \
-				( (finished() or not self.running) and not tilesData.empty()):
+					( (finished() or not self.running) and not tilesData.empty()):
 					data = [tilesData.get() for i in range(tilesData.qsize())]
 					with self.lock:
 						cache.putTiles(data)
@@ -905,7 +881,7 @@ class MapService():
 			if not bigTiff:
 				mosaic = NpImage(reprojImg(tm.CRS, outCRS, mosaic.toGDAL(), sqPx=True, resamplAlg=self.RESAMP_ALG))
 			else:
-				outPath = path[:-4] + '_' + str(outCRS) + '.tif'
+				outPath = f'{path[:-4]}_{str(outCRS)}.tif'
 				ds = reprojImg(tm.CRS, outCRS, mosaic.ds, sqPx=True, resamplAlg=self.RESAMP_ALG, path=outPath)
 
 		#build overviews for file output
@@ -919,7 +895,4 @@ class MapService():
 		#Finish
 		if cpt:
 			self.status = 0
-		if path is None:
-			return mosaic
-		else:
-			return None
+		return mosaic if path is None else None

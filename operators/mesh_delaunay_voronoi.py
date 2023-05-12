@@ -77,10 +77,10 @@ class OBJECT_OT_tesselation_delaunay(bpy.types.Operator):
 			# 2 => the input constraints, intersected.
 			# 3 => like 2 but with extra edges to make valid BMesh faces.
 			'''
-			log.info("Triangulate {} points...".format(len(mesh.vertices)))
+			log.info(f"Triangulate {len(mesh.vertices)} points...")
 			verts, edges, faces, overts, oedges, ofaces  = delaunay_2d_cdt([v.co.to_2d() for v in mesh.vertices], [], [], 0, 0.1)
 			verts = [ (v.x, v.y, mesh.vertices[overts[i][0]].co.z) for i, v in enumerate(verts)] #retrieve z values
-			log.info("Getting {} triangles".format(len(faces)))
+			log.info(f"Getting {len(faces)} triangles")
 			log.info("Create mesh...")
 			tinMesh = bpy.data.meshes.new("TIN")
 			tinMesh.from_pydata(verts, edges, faces)
@@ -91,8 +91,8 @@ class OBJECT_OT_tesselation_delaunay(bpy.types.Operator):
 			verts = [[vert.x, vert.y, vert.z] for vert in vertsPts]
 			nDupli, nZcolinear = unique(verts)
 			nVerts = len(verts)
-			log.info("{} duplicates points ignored".format(nDupli))
-			log.info("{} z colinear points excluded".format(nZcolinear))
+			log.info(f"{nDupli} duplicates points ignored")
+			log.info(f"{nZcolinear} z colinear points excluded")
 			if nVerts < 3:
 				self.report({'ERROR'}, "Not enough points")
 				return {'CANCELLED'}
@@ -103,11 +103,11 @@ class OBJECT_OT_tesselation_delaunay(bpy.types.Operator):
 				self.report({'ERROR'}, "Points are colinear")
 				return {'CANCELLED'}
 			#Triangulate
-			log.info("Triangulate {} points...".format(nVerts))
+			log.info(f"Triangulate {nVerts} points...")
 			vertsPts = [Point(vert[0], vert[1], vert[2]) for vert in verts]
 			faces = computeDelaunayTriangulation(vertsPts)
 			faces = [tuple(reversed(tri)) for tri in faces]#reverse point order --> if all triangles are specified anticlockwise then all faces up
-			log.info("Getting {} triangles".format(len(faces)))
+			log.info(f"Getting {len(faces)} triangles")
 			#Create new mesh structure
 			log.info("Create mesh...")
 			tinMesh = bpy.data.meshes.new("TIN") #create a new mesh
@@ -127,7 +127,7 @@ class OBJECT_OT_tesselation_delaunay(bpy.types.Operator):
 		obj.select_set(False)
 		#Report
 		t = round(perf_clock() - t0, 2)
-		msg = "{} triangles created in {} seconds".format(len(faces), t)
+		msg = f"{len(faces)} triangles created in {t} seconds"
 		self.report({'INFO'}, msg)
 		#log.info(msg) #duplicate log
 		return {'FINISHED'}
@@ -170,8 +170,8 @@ class OBJECT_OT_tesselation_voronoi(bpy.types.Operator):
 		verts = [[vert.x, vert.y, vert.z] for vert in vertsPts]
 		nDupli, nZcolinear = unique(verts)
 		nVerts = len(verts)
-		log.info("{} duplicates points ignored".format(nDupli))
-		log.info("{} z colinear points excluded".format(nZcolinear))
+		log.info(f"{nDupli} duplicates points ignored")
+		log.info(f"{nZcolinear} z colinear points excluded")
 		if nVerts < 3:
 			self.report({'ERROR'}, "Not enough points")
 			return {'CANCELLED'}
@@ -182,7 +182,7 @@ class OBJECT_OT_tesselation_voronoi(bpy.types.Operator):
 			self.report({'ERROR'}, "Points are colinear")
 			return {'CANCELLED'}
 		#Create diagram
-		log.info("Tesselation... ({} points)".format(nVerts))
+		log.info(f"Tesselation... ({nVerts} points)")
 		xbuff, ybuff = 5, 5 # %
 		zPosition = 0
 		vertsPts = [Point(vert[0], vert[1], vert[2]) for vert in verts]
@@ -214,9 +214,9 @@ class OBJECT_OT_tesselation_voronoi(bpy.types.Operator):
 		#Report
 		t = round(perf_clock() - t0, 2)
 		if self.meshType == "Edges":
-			self.report({'INFO'}, "{} edges created in {} seconds".format(len(edgesIdx), t))
+			self.report({'INFO'}, f"{len(edgesIdx)} edges created in {t} seconds")
 		else:
-			self.report({'INFO'}, "{} polygons created in {} seconds".format(len(polyIdx), t))
+			self.report({'INFO'}, f"{len(polyIdx)} polygons created in {t} seconds")
 		return {'FINISHED'}
 
 classes = [
@@ -229,7 +229,7 @@ def register():
 		try:
 			bpy.utils.register_class(cls)
 		except ValueError as e:
-			log.warning('{} is already registered, now unregister and retry... '.format(cls))
+			log.warning(f'{cls} is already registered, now unregister and retry... ')
 			bpy.utils.unregister_class(cls)
 			bpy.utils.register_class(cls)
 

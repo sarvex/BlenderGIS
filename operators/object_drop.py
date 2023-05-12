@@ -37,8 +37,7 @@ def get_align_matrix(location, normal):
     axis = up.cross(normal)
     mat_rot = Matrix.Rotation(angle, 4, axis)
     mat_loc = Matrix.Translation(location)
-    mat_align = mat_rot @ mat_loc
-    return mat_align
+    return mat_rot @ mat_loc
 
 def get_lowest_world_co(ob, mat_parent=None):
     bme = bmesh.new()
@@ -109,23 +108,16 @@ class OBJECT_OT_drop_to_ground(Operator):
         rayCaster = DropToGround(scn, ground)
 
         for ob in obs:
-            if self.useOrigin:
-                minLoc = ob.location
-            else:
-                minLoc = get_lowest_world_co(ob)
-                #minLoc = min([(ob.matrix_world * v.co).z for v in ob.data.vertices])
-                #getBBOX.fromObj(ob).zmin #what xy coords ???
-
+            minLoc = ob.location if self.useOrigin else get_lowest_world_co(ob)
             if not minLoc:
-                msg = "Object {} is of type {} works only with Use Center option " \
-                          "checked".format(ob.name, ob.type)
+                msg = f"Object {ob.name} is of type {ob.type} works only with Use Center option checked"
                 log.info(msg)
 
             x, y = minLoc.x, minLoc.y
             hit = rayCaster.rayCast(x, y)
 
             if not hit.hit:
-                log.info(ob.name + " did not hit the Active Object")
+                log.info(f"{ob.name} did not hit the Active Object")
                 continue
 
             # simple drop down
@@ -162,12 +154,14 @@ class OBJECT_OT_drop_to_ground(Operator):
         return {'FINISHED'}
 
 def register():
-	try:
-		bpy.utils.register_class(OBJECT_OT_drop_to_ground)
-	except ValueError as e:
-		log.warning('{} is already registered, now unregister and retry... '.format(OBJECT_OT_drop_to_ground))
-		unregister()
-		bpy.utils.register_class(OBJECT_OT_drop_to_ground)
+    try:
+        bpy.utils.register_class(OBJECT_OT_drop_to_ground)
+    except ValueError as e:
+        log.warning(
+            f'{OBJECT_OT_drop_to_ground} is already registered, now unregister and retry... '
+        )
+        unregister()
+        bpy.utils.register_class(OBJECT_OT_drop_to_ground)
 
 
 def unregister():

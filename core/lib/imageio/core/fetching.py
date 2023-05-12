@@ -69,10 +69,9 @@ def get_remote_file(fname, directory=None, force_download=False):
                 ftime = time.gmtime(op.getctime(filename))
                 if ftime >= ntime:
                     return filename
-                else:
-                    print('File older than %s, updating...' % force_download)
-                    break
-    
+                print(f'File older than {force_download}, updating...')
+                break
+
     # If we get here, we're going to try to download the file
     if os.getenv('IMAGEIO_NO_INTERNET', '').lower() in ('1', 'true', 'yes'):
         raise InternetNotAllowedError('Will not download resource from the '
@@ -116,11 +115,11 @@ def _fetch_file(url, file_name, print_destination=True):
     """
     # Adapted from NISL:
     # https://github.com/nisl/tutorial/blob/master/nisl/datasets.py
-    
+
     print('Imageio: %r was not found on your computer; '
           'downloading it now.' % os.path.basename(file_name))
-    
-    temp_file_name = file_name + ".part"
+
+    temp_file_name = f"{file_name}.part"
     local_file = None
     initial_size = 0
     errors = []
@@ -143,11 +142,10 @@ def _fetch_file(url, file_name, print_destination=True):
             break
         except Exception as e:
             errors.append(e)
-            print('Error while fetching file: %s.' % str(e))
+            print(f'Error while fetching file: {str(e)}.')
         finally:
-            if local_file is not None:
-                if not local_file.closed:
-                    local_file.close()
+            if local_file is not None and not local_file.closed:
+                local_file.close()
     else:
         raise IOError('Unable to download %r. Perhaps there is a no internet '
                       'connection? If there is, please report this problem.' %
@@ -201,12 +199,12 @@ def _chunk_write(chunk, local_file, progress):
 def _sizeof_fmt(num):
     """Turn number of bytes into human-readable str"""
     units = ['bytes', 'kB', 'MB', 'GB', 'TB', 'PB']
-    decimals = [0, 0, 1, 2, 2, 2]
     """Human friendly file size"""
     if num > 1:
         exponent = min(int(log(num, 1024)), len(units) - 1)
         quotient = float(num) / 1024 ** exponent
         unit = units[exponent]
+        decimals = [0, 0, 1, 2, 2, 2]
         num_decimals = decimals[exponent]
         format_string = '{0:.%sf} {1}' % (num_decimals)
         return format_string.format(quotient, unit)

@@ -65,7 +65,7 @@ class NpImage():
 		elif engine == 'PIL'and HAS_PIL:
 			return 'PIL'
 		else:
-			raise ImportError(str(engine) + " interface unavailable")
+			raise ImportError(f"{str(engine)} interface unavailable")
 
 	#GeoGef delegation by composition instead of inheritance
 	#this special method is called whenever the requested attribute or method is not found in the object
@@ -73,7 +73,7 @@ class NpImage():
 		if self.isGeoref:
 			return getattr(self.georef, attr)
 		else:#TODO raise specific msg if request for a georef attribute and not self.isgeoref
-			raise AttributeError(str(type(self)) + 'object has no attribute' + str(attr))
+			raise AttributeError(f'{str(type(self))}object has no attribute{str(attr)}')
 
 
 	def __init__(self, data, subBoxPx=None, noData=None, georef=None, adjustGeoref=False):
@@ -98,10 +98,9 @@ class NpImage():
 		self.noData = noData
 
 		self.georef = georef
-		if self.subBoxPx is not None and self.georef is not None:
-			if adjustGeoref:
-				self.georef.setSubBoxPx(subBoxPx)
-				self.georef.applySubBox()
+		if self.subBoxPx is not None and self.georef is not None and adjustGeoref:
+			self.georef.setSubBoxPx(subBoxPx)
+			self.georef.applySubBox()
 
 		#init from another NpImage instance
 		if isinstance(data, NpImage):
@@ -129,14 +128,12 @@ class NpImage():
 				raise ValueError('Unable to load image data')
 
 		#init from GDAL dataset instance
-		if HAS_GDAL:
-			if isinstance(data, gdal.Dataset):
-				self.data = self._npFromGDAL(data)
+		if HAS_GDAL and isinstance(data, gdal.Dataset):
+			self.data = self._npFromGDAL(data)
 
 		#init from PIL Image instance
-		if HAS_PIL:
-			if Image.isImageType(data):
-				self.data = self._npFromPIL(data)
+		if HAS_PIL and Image.isImageType(data):
+			self.data = self._npFromPIL(data)
 
 		if self.data is None:
 			raise ValueError('Unable to load image data')
@@ -152,10 +149,7 @@ class NpImage():
 	@property
 	def isGeoref(self):
 		'''Flag if georef parameters have been extracted'''
-		if self.georef is not None:
-			return True
-		else:
-			return False
+		return self.georef is not None
 
 	@property
 	def nbBands(self):
@@ -179,22 +173,13 @@ class NpImage():
 
 	@property
 	def isFloat(self):
-		if self.dtype in ['float16', 'float32', 'float64']:
-			return True
-		else:
-			return False
+		return self.dtype in ['float16', 'float32', 'float64']
 
 	def getMin(self, bandIdx=0):
-		if self.nbBands == 1:
-			return self.data.min()
-		else:
-			return self.data[:,:,bandIdx].min()
+		return self.data.min() if self.nbBands == 1 else self.data[:,:,bandIdx].min()
 
 	def getMax(self, bandIdx=0):
-		if self.nbBands == 1:
-			return self.data.max()
-		else:
-			return self.data[:,:,bandIdx].max()
+		return self.data.max() if self.nbBands == 1 else self.data[:,:,bandIdx].max()
 
 	@classmethod
 	def new(cls, w, h, bkgColor=(255,255,255,255), noData=None, georef=None):
@@ -211,10 +196,7 @@ class NpImage():
 		if self.subBoxPx is not None:
 			x1, x2 = self.subBoxPx.xmin, self.subBoxPx.xmax+1
 			y1, y2 = self.subBoxPx.ymin, self.subBoxPx.ymax+1
-			if len(data.shape) == 2: #one band
-				data = data[y1:y2, x1:x2]
-			else:
-				data = data[y1:y2, x1:x2, :]
+			data = data[y1:y2, x1:x2] if len(data.shape) == 2 else data[y1:y2, x1:x2, :]
 			self.subBoxPx = None
 		return data
 
@@ -244,7 +226,9 @@ class NpImage():
 		elif self.IFACE == 'GDAL':
 			#Use a virtual memory file to create gdal dataset from buffer
 			#build a random name to make the function thread safe
-			vsipath = '/vsimem/' + ''.join(random.choice('abcdefghijklmnopqrstuvwxyz') for i in range(5))
+			vsipath = '/vsimem/' + ''.join(
+				random.choice('abcdefghijklmnopqrstuvwxyz') for _ in range(5)
+			)
 			gdal.FileFromMemBuffer(vsipath, data)
 			ds = gdal.Open(vsipath)
 			data = self._npFromGDAL(ds)
@@ -282,7 +266,7 @@ class NpImage():
 			if ctable is not None:
 				#Swap index values to their corresponding color (rgba)
 				nbColors = ctable.GetCount()
-				keys = np.array( [i for i in range(nbColors)] )
+				keys = np.array(list(range(nbColors)))
 				values = np.array( [ctable.GetColorEntry(i) for i in range(nbColors)] )
 				sortIdx = np.argsort(keys)
 				idx = np.searchsorted(keys, data, sorter=sortIdx)
@@ -318,8 +302,8 @@ class NpImage():
 		elif self.IFACE == 'GDAL':
 			mem = self.toGDAL()
 			#build a random name to make the function thread safe
-			name = ''.join(random.choice('abcdefghijklmnopqrstuvwxyz') for i in range(5))
-			vsiname = '/vsimem/' + name + '.png'
+			name = ''.join(random.choice('abcdefghijklmnopqrstuvwxyz') for _ in range(5))
+			vsiname = f'/vsimem/{name}.png'
 			out = gdal.GetDriverByName(ext).CreateCopy(vsiname, mem)
 			# Read /vsimem/output.png
 			f = gdal.VSIFOpenL(vsiname, 'rb')
@@ -392,14 +376,14 @@ class NpImage():
 				self.removeAlpha()
 			imageio.imwrite(path, self.data)#float32 support ok
 		elif self.IFACE == 'GDAL':
-			if imgFormat == 'png':
-				driver = 'PNG'
-			elif imgFormat == 'jpg':
+			if imgFormat == 'jpg':
 				driver = 'JPEG'
+			elif imgFormat == 'png':
+				driver = 'PNG'
 			elif imgFormat == 'tif':
 				driver = 'Gtiff'
 			else:
-				raise ValueError('Cannot write to '+ imgFormat + ' image format')
+				raise ValueError(f'Cannot write to {imgFormat} image format')
 			#Some format like jpg or png has no create method implemented
 			#because we can't write data at random with these formats
 			#so we must use an intermediate memory driver, write data to it
@@ -409,7 +393,7 @@ class NpImage():
 			mem = out = None
 
 		if self.isGeoref:
-			self.georef.toWorldFile(os.path.splitext(path)[0] + '.wld')
+			self.georef.toWorldFile(f'{os.path.splitext(path)[0]}.wld')
 
 
 	def paste(self, data, x, y):
@@ -420,7 +404,7 @@ class NpImage():
 
 		if img.isOneBand and self.isOneBand:
 			self.data[y:y+h, x:x+w] = data
-		elif (not img.isOneBand and self.isOneBand) or (img.isOneBand and not self.isOneBand):
+		elif not img.isOneBand and self.isOneBand or img.isOneBand:
 			raise ValueError('Paste error, cannot mix one band with multiband')
 
 		if self.hasAlpha:
@@ -467,12 +451,14 @@ class NpImage():
 		return NpImage(ds2)
 
 	def __repr__(self):
-		return '\n'.join([
-		"* Data infos :",
-		" size {}".format(self.size),
-		" type {}".format(self.dtype),
-		" number of bands {}".format(self.nbBands),
-		" nodata value {}".format(self.noData),
-		"* Statistics : min {} max {}".format(self.getMin(), self.getMax()),
-		"* Georef & Geometry : \n{}".format(self.georef)
-		])
+		return '\n'.join(
+			[
+				"* Data infos :",
+				f" size {self.size}",
+				f" type {self.dtype}",
+				f" number of bands {self.nbBands}",
+				f" nodata value {self.noData}",
+				f"* Statistics : min {self.getMin()} max {self.getMax()}",
+				f"* Georef & Geometry : \n{self.georef}",
+			]
+		)

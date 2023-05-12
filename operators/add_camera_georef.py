@@ -76,29 +76,30 @@ class CAMERA_OT_add_georender_cam(bpy.types.Operator):
 
 		#Validate selection
 		objs = bpy.context.selected_objects
-		if (not objs or len(objs) > 2) or \
-		(len(objs) == 1 and not objs[0].type == 'MESH') or \
-		(len(objs) == 2 and not set( (objs[0].type, objs[1].type )) == set( ('MESH','CAMERA') ) ):
+		if (
+			not objs
+			or len(objs) > 2
+			or len(objs) == 1
+			and objs[0].type != 'MESH'
+			or len(objs) == 2
+			and {objs[0].type, objs[1].type} != {'MESH', 'CAMERA'}
+		):
 			self.report({'ERROR'}, "Pre-selection is incorrect")
 			return {'CANCELLED'}
 
 		#Flag new camera creation
-		if len(objs) == 2:
-			newCam = False
-		else:
-			newCam = True
-
+		newCam = len(objs) != 2
 		#Get georef data
 		dx, dy = geoscn.getOriginPrj()
 
 		#Allocate obj
 		for obj in objs:
-			if obj.type == 'MESH':
-				georefObj = obj
-			elif obj.type == 'CAMERA':
+			if obj.type == 'CAMERA':
 				camObj = obj
 				cam = camObj.data
 
+			elif obj.type == 'MESH':
+				georefObj = obj
 		#do not recompute bbox at operator redo because zdim is miss-evaluated
 		#when redoing the op on an obj that have a displace modifier on it
 		#TODO find a less hacky fix
@@ -153,9 +154,9 @@ class CAMERA_OT_add_georender_cam(bpy.types.Operator):
 		cam.show_limits = True
 
 		if not newCam:
-			if self.redo == 1:#first exec, get initial camera name
+			if self.redo == 1:
 				self.name = camObj.name
-			else:#following exec, set camera name in redo panel
+			else:
 				camObj.name = self.name
 				camObj.data.name = self.name
 
@@ -176,7 +177,7 @@ class CAMERA_OT_add_georender_cam(bpy.types.Operator):
 		x = bbox['xmin'] + dx
 		y = bbox['ymax'] + dy
 		wf_data = '\n'.join(map(str, [res, rot, rot, -res, x+res/2, y-res/2]))
-		wf_name = camObj.name + '.wld'
+		wf_name = f'{camObj.name}.wld'
 		if wf_name in bpy.data.texts:
 			wfText = bpy.data.texts[wf_name]
 			wfText.clear()
@@ -197,7 +198,9 @@ def register():
 	try:
 		bpy.utils.register_class(CAMERA_OT_add_georender_cam)
 	except ValueError as e:
-		log.warning('{} is already registered, now unregister and retry... '.format(CAMERA_OT_add_georender_cam))
+		log.warning(
+			f'{CAMERA_OT_add_georender_cam} is already registered, now unregister and retry... '
+		)
 		unregister()
 		bpy.utils.register_class(CAMERA_OT_add_georender_cam)
 

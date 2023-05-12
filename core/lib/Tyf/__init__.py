@@ -6,7 +6,7 @@ __geotiff__   = (1, 8, 1)
 
 import io, os, sys, struct, operator, collections
 
-__PY3__ = True if sys.version_info[0] >= 3 else False
+__PY3__ = sys.version_info[0] >= 3
 
 unpack = lambda fmt, fileobj: struct.unpack(fmt, fileobj.read(struct.calcsize(fmt)))
 pack = lambda fmt, fileobj, value: fileobj.write(struct.pack(fmt, *value))
@@ -47,12 +47,12 @@ def _read_IFD(obj, fileobj, offset, byteorder="<"):
 	# fileobj seek must be on the start offset
 	fileobj.seek(offset)
 	# get number of entry
-	nb_entry, = unpack(byteorder+"H", fileobj)
+	nb_entry, = unpack(f"{byteorder}H", fileobj)
 
 	# for each entry
-	for i in range(nb_entry):
+	for _ in range(nb_entry):
 		# read tag, type and count values
-		tag, typ, count = unpack(byteorder+"HHL", fileobj)
+		tag, typ, count = unpack(f"{byteorder}HHL", fileobj)
 		# extract data
 		data = fileobj.read(struct.calcsize("=L"))
 		if not isinstance(data, bytes):
@@ -70,27 +70,24 @@ def _read_IFD(obj, fileobj, offset, byteorder="<"):
 		# if value is offset
 		if tt.value_is_offset:
 			# read offset value
-			value, = struct.unpack(byteorder+"L", data)
+			value, = struct.unpack(f"{byteorder}L", data)
 			fmt = byteorder + _typ*count
 			bckp = fileobj.tell()
 			# go to offset in the file
 			fileobj.seek(value)
 			# if ascii type, convert to bytes
-			if typ == 2: tt.value = b"".join(e for e in unpack(fmt, fileobj))
-			# else if undefined type, read data
+			if typ == 2:
+				tt.value = b"".join(iter(unpack(fmt, fileobj)))
 			elif typ == 7: tt.value = fileobj.read(count)
-			# else unpack data
 			else: tt.value = unpack(fmt, fileobj)
 			# go back to ifd entry
 			fileobj.seek(bckp)
 
-		# if value is in the ifd entry
+		elif typ in [2, 7]:
+			tt.value = data[:count]
 		else:
-			if typ in [2, 7]:
-				tt.value = data[:count]
-			else:
-				fmt = byteorder + _typ*count
-				tt.value = struct.unpack(fmt, data[:count*struct.calcsize("="+_typ)])
+			fmt = byteorder + _typ*count
+			tt.value = struct.unpack(fmt, data[:count * struct.calcsize(f"={_typ}")])
 
 		obj.addtag(tt)
 
@@ -98,12 +95,12 @@ def from_buffer(obj, fileobj, offset, byteorder="<", custom_sub_ifd={}):
 	# read data from offset
 	_read_IFD(obj, fileobj, offset, byteorder)
 	# get next ifd offset
-	next_ifd, = unpack(byteorder+"L", fileobj)
+	next_ifd, = unpack(f"{byteorder}L", fileobj)
 
 	# finding by default those SubIFD
 	sub_ifd = {34665:"Exif tag", 34853:"GPS tag", 40965:"Interoperability tag"}
 	# adding other SubIFD if asked
-	sub_ifd.update(custom_sub_ifd)
+	sub_ifd |= custom_sub_ifd
 	## read registered SubIFD
 	for key,value in sub_ifd.items():
 		if key in obj:
@@ -140,13 +137,13 @@ def _write_IFD(obj, fileobj, offset, byteorder="<"):
 	# sort data to be writen
 	tags = sorted(list(dict.values(obj)), key=lambda e:e.tag)
 	# write number of entries
-	pack(byteorder+"H", fileobj, (len(tags),))
+	pack(f"{byteorder}H", fileobj, (len(tags),))
 
 	first_entry_offset = fileobj.tell()
 	# write all ifd entries
 	for t in tags:
 		# write tag, type & count
-		pack(byteorder+"HHL", fileobj, (t.tag, t.type, t.count))
+		pack(f"{byteorder}HHL", fileobj, (t.tag, t.type, t.count))
 
 		# if value is not an offset
 		if not t.value_is_offset:
@@ -159,10 +156,10 @@ def _write_IFD(obj, fileobj, offset, byteorder="<"):
 				fmt = n*TYPES[t.type][0]
 			pack(byteorder+fmt, fileobj, value)
 		else:
-			pack(byteorder+"L", fileobj, (0,))
+			pack(f"{byteorder}L", fileobj, (0,))
 
 	next_ifd_offset = fileobj.tell()
-	pack(byteorder+"L", fileobj, (0,))
+	pack(f"{byteorder}L", fileobj, (0,))
 
 	# prepare jumps
 	data_offset = fileobj.tell()
@@ -177,7 +174,7 @@ def _write_IFD(obj, fileobj, offset, byteorder="<"):
 			# go to offset value location (jump over tag, type, count)
 			fileobj.seek(step2, 1)
 			# write offset where value is about to be stored
-			pack(byteorder+"L", fileobj, (data_offset,))
+			pack(f"{byteorder}L", fileobj, (data_offset,))
 			# remember where i am in ifd entries
 			bckp = fileobj.tell()
 			# go to offset where value is about to be stored
@@ -292,14 +289,14 @@ class TiffFile(list):
 		first, = unpack(">H", fileobj)
 		byteorder = "<" if first == 0x4949 else ">"
 
-		magic_number, = unpack(byteorder+"H", fileobj)
+		magic_number, = unpack(f"{byteorder}H", fileobj)
 		if magic_number not in [0x732E,0x2A]: #29486, 42
 			fileobj.close()
 			if magic_number == 0x2B: # 43
 				raise IOError("BigTIFF file not supported")
 			else:
 				raise IOError("Bad magic number. Not a valid TIFF file")
-		next_ifd, = unpack(byteorder+"L", fileobj)
+		next_ifd, = unpack(f"{byteorder}L", fileobj)
 
 		ifds = []
 		while next_ifd != 0:
@@ -335,7 +332,7 @@ class TiffFile(list):
 	def load_raster(self, idx=None):
 		if hasattr(self, "_filename"):
 			in_ = io.open(self._filename, "rb")
-			for ifd in iter(self) if idx == None else [self[idx]]:
+			for ifd in iter(self) if idx is None else [self[idx]]:
 				if not ifd.raster_loaded: _load_raster(ifd, in_)
 			in_.close()
 
@@ -343,11 +340,18 @@ class TiffFile(list):
 		self.load_raster()
 		fileobj, _close = _fileobj(f, "wb")
 
-		pack(byteorder+"HH", fileobj, (0x4949 if byteorder == "<" else 0x4d4d, 0x2A,))
+		pack(
+			f"{byteorder}HH",
+			fileobj,
+			(
+				0x4949 if byteorder == "<" else 0x4D4D,
+				0x2A,
+			),
+		)
 		next_ifd = 8
 
-		for i in iter(self) if idx == None else [self[idx]]:
-			pack(byteorder+"L", fileobj, (next_ifd,))
+		for i in iter(self) if idx is None else [self[idx]]:
+			pack(f"{byteorder}L", fileobj, (next_ifd,))
 			next_ifd = to_buffer(i, fileobj, next_ifd, byteorder)
 
 		if _close: fileobj.close()
@@ -444,7 +448,7 @@ class JpegFile(collections.OrderedDict):
 		for key in [k for k in self.exif.sub_ifd if k in self.exif]:
 			self.exif.pop(key)
 		self.exif.sub_ifd = {}
-		for key in list(k for k in self.exif if k not in tags.bTT):
+		for key in [k for k in self.exif if k not in tags.bTT]:
 			self.exif.pop(key)
 		while len(self[0xffe1]) > 1:
 			self[0xffe1].pop(-1)

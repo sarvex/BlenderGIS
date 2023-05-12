@@ -81,10 +81,7 @@ class SK():
 class GeoScene():
 
 	def __init__(self, scn=None):
-		if scn is None:
-			self.scn = bpy.context.scene
-		else:
-			self.scn = scn
+		self.scn = bpy.context.scene if scn is None else scn
 		self.SK = SK()
 
 	@property
@@ -120,9 +117,7 @@ class GeoScene():
 
 	@property
 	def hasValidCRS(self):
-		if not self.hasCRS:
-			return False
-		return SRS.validate(self.crs)
+		return False if not self.hasCRS else SRS.validate(self.crs)
 
 	@property
 	def isGeoref(self):
@@ -279,7 +274,7 @@ class GeoScene():
 		if -90 <= v <= 90:
 			self.scn[SK.LAT] = v
 		else:
-			raise ValueError('Wrong latitude value '+str(v))
+			raise ValueError(f'Wrong latitude value {str(v)}')
 	@lat.deleter
 	def lat(self):
 		if SK.LAT in self.scn:
@@ -295,7 +290,7 @@ class GeoScene():
 		if -180 <= v <= 180:
 			self.scn[SK.LON] = v
 		else:
-			raise ValueError('Wrong longitude value '+str(v))
+			raise ValueError(f'Wrong longitude value {str(v)}')
 	@lon.deleter
 	def lon(self):
 		if SK.LON in self.scn:
@@ -311,7 +306,7 @@ class GeoScene():
 		if isinstance(v, (int, float)):
 			self.scn[SK.CRSX] = v
 		else:
-			raise ValueError('Wrong x origin value '+str(v))
+			raise ValueError(f'Wrong x origin value {str(v)}')
 	@crsx.deleter
 	def crsx(self):
 		if SK.CRSX in self.scn:
@@ -327,7 +322,7 @@ class GeoScene():
 		if isinstance(v, (int, float)):
 			self.scn[SK.CRSY] = v
 		else:
-			raise ValueError('Wrong y origin value '+str(v))
+			raise ValueError(f'Wrong y origin value {str(v)}')
 	@crsy.deleter
 	def crsy(self):
 		if SK.CRSY in self.scn:
@@ -623,16 +618,16 @@ def getLat(self):
 
 def setLon(self, lon):
 	geoscn = GeoScene()
-	prefs = bpy.context.preferences.addons[PKG].preferences
 	if geoscn.hasOriginGeo:
+		prefs = bpy.context.preferences.addons[PKG].preferences
 		geoscn.updOriginGeo(lon, geoscn.lat, updObjLoc=prefs.lockObj)
 	else:
 		geoscn.setOriginGeo(lon, geoscn.lat)
 
 def setLat(self, lat):
 	geoscn = GeoScene()
-	prefs = bpy.context.preferences.addons[PKG].preferences
 	if geoscn.hasOriginGeo:
+		prefs = bpy.context.preferences.addons[PKG].preferences
 		geoscn.updOriginGeo(geoscn.lon, lat, updObjLoc=prefs.lockObj)
 	else:
 		geoscn.setOriginGeo(geoscn.lon, lat)
@@ -647,16 +642,16 @@ def getCrsy(self):
 
 def setCrsx(self, x):
 	geoscn = GeoScene()
-	prefs = bpy.context.preferences.addons[PKG].preferences
 	if geoscn.hasOriginPrj:
+		prefs = bpy.context.preferences.addons[PKG].preferences
 		geoscn.updOriginPrj(x, geoscn.crsy, updObjLoc=prefs.lockObj)
 	else:
 		geoscn.setOriginPrj(x, geoscn.crsy)
 
 def setCrsy(self, y):
 	geoscn = GeoScene()
-	prefs = bpy.context.preferences.addons[PKG].preferences
 	if geoscn.hasOriginPrj:
+		prefs = bpy.context.preferences.addons[PKG].preferences
 		geoscn.updOriginPrj(geoscn.crsx, y, updObjLoc=prefs.lockObj)
 	else:
 		geoscn.setOriginPrj(geoscn.crsx, y)
@@ -717,7 +712,7 @@ def georefManagerLayout(self, context):
 	split = row.split(factor=0.25)
 	if geoscn.hasCRS:
 		split.label(icon='PROP_ON', text='CRS:')
-	elif not geoscn.hasCRS and (geoscn.hasOriginGeo or geoscn.hasOriginPrj):
+	elif geoscn.hasOriginGeo or geoscn.hasOriginPrj:
 		split.label(icon='ERROR', text='CRS:')
 	else:
 		split.label(icon='PROP_OFF', text='CRS:')
@@ -744,11 +739,11 @@ def georefManagerLayout(self, context):
 	split = row.split(factor=0.25, align=True)
 	if not geoscn.hasOriginGeo and not geoscn.hasOriginPrj:
 		split.label(icon='PROP_OFF', text="Origin:")
-	elif not geoscn.hasOriginGeo and geoscn.hasOriginPrj:
+	elif not geoscn.hasOriginGeo:
 		split.label(icon='PROP_CON', text="Origin:")
-	elif geoscn.hasOriginGeo and geoscn.hasOriginPrj:
+	elif geoscn.hasOriginPrj:
 		split.label(icon='PROP_ON', text="Origin:")
-	elif geoscn.hasOriginGeo and not geoscn.hasOriginPrj:
+	else:
 		split.label(icon='ERROR', text="Origin:")
 
 	col = split.column(align=True)
@@ -796,7 +791,7 @@ def georefManagerLayout(self, context):
 		row.label(text='Map scale:')
 		col = row.column()
 		col.enabled = False
-		col.prop(scn, '["'+SK.SCALE+'"]', text='')
+		col.prop(scn, f'["{SK.SCALE}"]', text='')
 
 	#if geoscn.hasZoom:
 	#	layout.prop(scn, '["'+SK.ZOOM+'"]', text='Zoom level', slider=True)
@@ -824,7 +819,7 @@ def register():
 		try:
 			bpy.utils.register_class(cls)
 		except ValueError as e:
-			log.warning('{} is already registered, now unregister and retry... '.format(cls))
+			log.warning(f'{cls} is already registered, now unregister and retry... ')
 			bpy.utils.unregister_class(cls)
 			bpy.utils.register_class(cls)
 	bpy.types.WindowManager.geoscnProps = PointerProperty(type=GLOBAL_PROPS)

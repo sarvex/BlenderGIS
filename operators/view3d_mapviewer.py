@@ -83,7 +83,7 @@ class BaseMap(GeoScene):
 
 		#Init MapService class
 		self.srv = MapService(srckey, cacheFolder)
-		self.name = srckey + '_' + laykey + '_' + grdkey
+		self.name = f'{srckey}_{laykey}_{grdkey}'
 
 		#Set destination tile matrix
 		if grdkey is None:
@@ -198,19 +198,15 @@ class BaseMap(GeoScene):
 			bbox = reprojBbox(self.crs, self.tm.CRS, bbox)
 		'''
 
-		log.debug('Bounding box request : {}'.format(bbox))
+		log.debug(f'Bounding box request : {bbox}')
 
 		#Stop thread if the request is same as previous
 		#TODO
 
-		if self.srv.srcGridKey == self.grdkey:
-			toDstGrid = False
-		else:
-			toDstGrid = True
-
-		mosaic = self.srv.getImage(self.laykey, bbox, self.zoom, toDstGrid=toDstGrid, outCRS=self.crs)
-
-		return mosaic
+		toDstGrid = self.srv.srcGridKey != self.grdkey
+		return self.srv.getImage(
+			self.laykey, bbox, self.zoom, toDstGrid=toDstGrid, outCRS=self.crs
+		)
 
 
 	def place(self):
@@ -299,10 +295,10 @@ def drawInfosText(self, context):
 	scale = geoscn.scale
 	#
 	txt = "Map view : "
-	txt += "Zoom " + str(zoom)
+	txt += f"Zoom {str(zoom)}"
 	if self.map.lockedZoom is not None:
 		txt += " (Locked)"
-	txt += " - Scale 1:" + str(int(scale))
+	txt += f" - Scale 1:{int(scale)}"
 	'''
 	# view3d distance
 	dst = reg3d.view_distance
@@ -314,33 +310,28 @@ def drawInfosText(self, context):
 	txt += ' 3D View distance ' + str(int(dst)) + ' ' + unit
 	'''
 	# cursor crs coords
-	txt += ' ' + str((int(self.posx), int(self.posy)))
+	txt += f' {(int(self.posx), int(self.posy))}'
 	# progress
-	txt += ' ' + self.progress
+	txt += f' {self.progress}'
 	context.area.header_text_set(txt)
 
 
 def drawZoomBox(self, context):
-	if self.zoomBoxMode and not self.zoomBoxDrag:
-		# before selection starts draw infinite cross
-		px, py = self.zb_xmax, self.zb_ymax
-		p1 = (0, py, 0)
-		p2 = (context.area.width, py, 0)
-		p3 = (px, 0, 0)
-		p4 = (px, context.area.height, 0)
-		coords = [p1, p2, p3, p4]
-		shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
-		batch = batch_for_shader(shader, 'LINES', {"pos": coords})
-		shader.bind()
-		shader.uniform_float("color", (0, 0, 0, 1))
-		batch.draw(shader)
-
-	elif self.zoomBoxMode and self.zoomBoxDrag:
-		p1 = (self.zb_xmin, self.zb_ymin, 0)
-		p2 = (self.zb_xmin, self.zb_ymax, 0)
-		p3 = (self.zb_xmax, self.zb_ymax, 0)
-		p4 = (self.zb_xmax, self.zb_ymin, 0)
-		coords = [p1, p2, p2, p3, p3, p4, p4, p1]
+	if self.zoomBoxMode:
+		if not self.zoomBoxDrag:
+			# before selection starts draw infinite cross
+			px, py = self.zb_xmax, self.zb_ymax
+			p1 = (0, py, 0)
+			p2 = (context.area.width, py, 0)
+			p3 = (px, 0, 0)
+			p4 = (px, context.area.height, 0)
+			coords = [p1, p2, p3, p4]
+		else:
+			p1 = (self.zb_xmin, self.zb_ymin, 0)
+			p2 = (self.zb_xmin, self.zb_ymax, 0)
+			p3 = (self.zb_xmax, self.zb_ymax, 0)
+			p4 = (self.zb_xmax, self.zb_ymin, 0)
+			coords = [p1, p2, p2, p3, p3, p4, p4, p1]
 		shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
 		batch = batch_for_shader(shader, 'LINES', {"pos": coords})
 		shader.bind()
@@ -361,11 +352,10 @@ class VIEW3D_OT_map_start(Operator):
 		return True
 
 	def listSources(self, context):
-		srcItems = []
-		for srckey, src in SOURCES.items():
-			#put each item in a tuple (key, label, tooltip)
-			srcItems.append( (srckey, src['name'], src['description']) )
-		return srcItems
+		return [
+			(srckey, src['name'], src['description'])
+			for srckey, src in SOURCES.items()
+		]
 
 	def listGrids(self, context):
 		grdItems = []
@@ -380,12 +370,11 @@ class VIEW3D_OT_map_start(Operator):
 		return grdItems
 
 	def listLayers(self, context):
-		layItems = []
 		src = SOURCES[self.src]
-		for laykey, lay in src['layers'].items():
-			#put each item in a tuple (key, label, tooltip)
-			layItems.append( (laykey, lay['name'], lay['description']) )
-		return layItems
+		return [
+			(laykey, lay['name'], lay['description'])
+			for laykey, lay in src['layers'].items()
+		]
 
 
 	src: EnumProperty(
@@ -421,8 +410,8 @@ class VIEW3D_OT_map_start(Operator):
 		layout = self.layout
 
 		if self.dialog == 'SEARCH':
-				layout.prop(self, 'query')
-				layout.prop(self, 'zoom', slider=True)
+			layout.prop(self, 'query')
+			layout.prop(self, 'zoom', slider=True)
 
 		elif self.dialog == 'OPTIONS':
 			#viewPrefs = context.preferences.view
@@ -447,9 +436,9 @@ class VIEW3D_OT_map_start(Operator):
 			#row.alignment = 'RIGHT'
 			desc = PredefCRS.getName(grdCRS)
 			if desc is not None:
-				row.label(text='CRS: ' + desc)
+				row.label(text=f'CRS: {desc}')
 			else:
-				row.label(text='CRS: ' + grdCRS)
+				row.label(text=f'CRS: {grdCRS}')
 
 			row = layout.row()
 			row.prop(self, 'recenter')
@@ -470,7 +459,7 @@ class VIEW3D_OT_map_start(Operator):
 			self.report({'ERROR'}, "No imaging library available. ImageIO module was not correctly installed.")
 			return {'CANCELLED'}
 
-		if not context.area.type == 'VIEW_3D':
+		if context.area.type != 'VIEW_3D':
 			self.report({'WARNING'}, "View3D not found, cannot run operator")
 			return {'CANCELLED'}
 

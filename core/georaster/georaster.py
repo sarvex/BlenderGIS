@@ -63,14 +63,12 @@ class GeoRaster():
 
 			self.format = getImgFormat(path)
 			if self.format not in ['TIFF', 'BMP', 'PNG', 'JPEG', 'JPEG2000']:
-				raise IOError("Unsupported format {}".format(self.format))
+				raise IOError(f"Unsupported format {self.format}")
 
 			if self.isTiff:
 				self._fromTIFF()
 				if not self.isGeoref and self.hasWorldFile:
 					self.georef = GeoRef.fromWorldFile(self.wfPath, self.size)
-				else:
-					pass
 			else:
 				# Try to read file header
 				w, h = getImgDim(self.path)
@@ -106,14 +104,11 @@ class GeoRaster():
 	def _getWfPath(self):
 		'''Try to find a worlfile path for this raster'''
 		ext = self.path[-3:].lower()
-		extTest = []
-		extTest.append(ext[0] + ext[2] +'w')# tfx, jgw, pgw ...
-		extTest.append(extTest[0]+'x')# tfwx
-		extTest.append(ext+'w')# tifw
-		extTest.append('wld')#*.wld
+		extTest = [ext[0] + ext[2] + 'w']
+		extTest.extend((f'{extTest[0]}x', f'{ext}w', 'wld'))
 		extTest.extend( [ext.upper() for ext in extTest] )
 		for wfExt in extTest:
-			pathTest = self.path[0:len(self.path)-3] + wfExt
+			pathTest = self.path[:len(self.path)-3] + wfExt
 			if os.path.isfile(pathTest):
 				return pathTest
 		return None
@@ -143,7 +138,6 @@ class GeoRaster():
 			self.georef = GeoRef.fromTyf(tif)
 		except Exception as e:
 			log.warning('Cannot extract georefencing informations from tif tags')#, exc_info=True)
-			pass
 
 
 	def _fromGDAL(self):
@@ -163,7 +157,7 @@ class GeoRaster():
 			self.dtype = 'uint'
 			self.depth = 8
 		else:
-			self.dtype = ddtype[0:len(ddtype)-2].lower()
+			self.dtype = ddtype[:len(ddtype)-2].lower()
 			self.depth = int(ddtype[-2:])
 		#Get Georef
 		self.georef = GeoRef.fromGDAL(ds)
@@ -186,10 +180,7 @@ class GeoRaster():
 	@property
 	def isTiff(self):
 		'''Flag if the image format is TIFF'''
-		if self.format in ['TIFF', 'GTiff']:
-			return True
-		else:
-			return False
+		return self.format in ['TIFF', 'GTiff']
 	@property
 	def hasWorldFile(self):
 		return self.wfPath is not None
@@ -197,10 +188,11 @@ class GeoRaster():
 	def isGeoref(self):
 		'''Flag if georef parameters have been extracted'''
 		if self.georef is not None:
-			if self.origin is not None and self.pxSize is not None and self.rotation is not None:
-				return True
-			else:
-				return False
+			return (
+				self.origin is not None
+				and self.pxSize is not None
+				and self.rotation is not None
+			)
 		else:
 			return False
 	@property
@@ -223,19 +215,21 @@ class GeoRaster():
 
 
 	def __repr__(self):
-		return '\n'.join([
-		'* Paths infos :',
-		' path {}'.format(self.path),
-		' worldfile {}'.format(self.wfPath),
-		' format {}'.format(self.format),
-		"* Data infos :",
-		" size {}".format(self.size),
-		" bit depth {}".format(self.depth),
-		" data type {}".format(self.dtype),
-		" number of bands {}".format(self.nbBands),
-		" nodata value {}".format(self.noData),
-		"* Georef & Geometry : \n{}".format(self.georef)
-		])
+		return '\n'.join(
+			[
+				'* Paths infos :',
+				f' path {self.path}',
+				f' worldfile {self.wfPath}',
+				f' format {self.format}',
+				"* Data infos :",
+				f" size {self.size}",
+				f" bit depth {self.depth}",
+				f" data type {self.dtype}",
+				f" number of bands {self.nbBands}",
+				f" nodata value {self.noData}",
+				f"* Georef & Geometry : \n{self.georef}",
+			]
+		)
 
 	#######################################
 	# Methods
@@ -248,9 +242,14 @@ class GeoRaster():
 	def readAsNpArray(self, subset=True):
 		'''Read raster pixels values as Numpy Array'''
 
-		if subset and self.subBoxGeo is not None:
-			#georef = GeoRef(self.size, self.pxSize, self.subBoxGeoOrigin, rot=self.rotation, pxCenter=True)
-			img = NpImage(self.path, subBoxPx=self.subBoxPx, noData=self.noData, georef=self.georef, adjustGeoref=True)
-		else:
-			img = NpImage(self.path, noData=self.noData, georef=self.georef)
-		return img
+		return (
+			NpImage(
+				self.path,
+				subBoxPx=self.subBoxPx,
+				noData=self.noData,
+				georef=self.georef,
+				adjustGeoref=True,
+			)
+			if subset and self.subBoxGeo is not None
+			else NpImage(self.path, noData=self.noData, georef=self.georef)
+		)

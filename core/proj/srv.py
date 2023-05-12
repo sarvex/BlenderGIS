@@ -46,10 +46,10 @@ class EPSGIO():
 			urlopen(rq, timeout=DEFAULT_TIMEOUT)
 			return True
 		except URLError as e:
-			log.error('Cannot ping {} web service, {}'.format(url, e.reason))
+			log.error(f'Cannot ping {url} web service, {e.reason}')
 			return False
 		except HTTPError as e:
-			log.error('Cannot ping {} web service, http error {}'.format(url, e.code))
+			log.error(f'Cannot ping {url} web service, http error {e.code}')
 			return False
 		except:
 			raise
@@ -72,7 +72,7 @@ class EPSGIO():
 			rq = Request(url, headers={'User-Agent': USER_AGENT})
 			response = urlopen(rq, timeout=REPROJ_TIMEOUT).read().decode('utf8')
 		except (URLError, HTTPError) as err:
-			log.error('Http request fails url:{}, code:{}, error:{}'.format(url, err.code, err.reason))
+			log.error(f'Http request fails url:{url}, code:{err.code}, error:{err.reason}')
 			raise
 
 		obj = json.loads(response)
@@ -97,7 +97,7 @@ class EPSGIO():
 		data = [','.join( [str(round(v, precision)) for v in p] ) for p in points ]
 		part, parts = [], []
 		for i,p in enumerate(data):
-			l = sum([len(p) for p in part]) + len(';'*len(part))
+			l = sum(len(p) for p in part) + len(';'*len(part))
 			if l + len(p) < 4000: #limit is 4094
 				part.append(p)
 			else:
@@ -116,7 +116,7 @@ class EPSGIO():
 				rq = Request(url, headers={'User-Agent': USER_AGENT})
 				response = urlopen(rq, timeout=REPROJ_TIMEOUT).read().decode('utf8')
 			except (URLError, HTTPError) as err:
-				log.error('Http request fails url:{}, code:{}, error:{}'.format(url, err.code, err.reason))
+				log.error(f'Http request fails url:{url}, code:{err.code}, error:{err.reason}')
 				raise
 
 			obj = json.loads(response)
@@ -129,11 +129,13 @@ class EPSGIO():
 		query = str(query).replace(' ', '+')
 		url = "http://epsg.io/?q={QUERY}&format=json"
 		url = url.replace("{QUERY}", query)
-		log.debug('Search crs : {}'.format(url))
+		log.debug(f'Search crs : {url}')
 		rq = Request(url, headers={'User-Agent': USER_AGENT})
 		response = urlopen(rq, timeout=DEFAULT_TIMEOUT).read().decode('utf8')
 		obj = json.loads(response)
-		log.debug('Search results : {}'.format([ (r['code'], r['name']) for r in obj['results'] ]))
+		log.debug(
+			f"Search results : {[(r['code'], r['name']) for r in obj['results']]}"
+		)
 		return obj['results']
 
 	@staticmethod
@@ -142,8 +144,7 @@ class EPSGIO():
 		url = url.replace("{CODE}", str(epsg))
 		log.debug(url)
 		rq = Request(url, headers={'User-Agent': USER_AGENT})
-		wkt = urlopen(rq, timeout=DEFAULT_TIMEOUT).read().decode('utf8')
-		return wkt
+		return urlopen(rq, timeout=DEFAULT_TIMEOUT).read().decode('utf8')
 
 
 
